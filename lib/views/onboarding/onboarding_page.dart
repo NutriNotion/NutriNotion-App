@@ -14,19 +14,22 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final List<OnboardingData> _onboardingData = [
     OnboardingData(
       title: "Welcome to NutriNotion",
-      description: "Track your nutrition journey with personalized meal plans and smart food recommendations.",
+      description:
+          "Track your nutrition journey with personalized meal plans and smart food recommendations.",
       image: Icons.restaurant_menu,
       color: Colors.green,
     ),
     OnboardingData(
       title: "Smart Nutrition Tracking",
-      description: "Easily log your meals and get detailed nutritional insights to reach your health goals.",
+      description:
+          "Easily log your meals and get detailed nutritional insights to reach your health goals.",
       image: Icons.analytics,
       color: Colors.blue,
     ),
     OnboardingData(
       title: "Achieve Your Goals",
-      description: "Set personalized nutrition goals and track your progress with our comprehensive dashboard.",
+      description:
+          "Set personalized nutrition goals and track your progress with our comprehensive dashboard.",
       image: Icons.emoji_events,
       color: Colors.orange,
     ),
@@ -190,7 +193,7 @@ class OnboardingSlide extends StatelessWidget {
             height: 200,
             width: 200,
             decoration: BoxDecoration(
-              color: data.color.withOpacity(0.1),
+              color: data.color.withAlpha(25),
               shape: BoxShape.circle,
             ),
             child: Icon(

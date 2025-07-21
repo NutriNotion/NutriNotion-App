@@ -13,7 +13,6 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _isLoading = false;
-  bool _rememberMe = false;
 
   @override
   void dispose() {
@@ -49,6 +48,9 @@ class _LoginPageState extends State<LoginPage> {
       });
 
       // Simulate login process
+
+      //login logic would go here, such as API calls
+
       await Future.delayed(const Duration(seconds: 2));
 
       setState(() {
@@ -67,13 +69,23 @@ class _LoginPageState extends State<LoginPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Forgot Password'),
-        content: const Text('Password reset functionality will be implemented here.'),
+        content: const Text(
+            'Password reset functionality will be implemented here.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _logInWithGoogle() {
+    // Google sign up implementation
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Google login in will be implemented soon!'),
       ),
     );
   }
@@ -94,7 +106,7 @@ class _LoginPageState extends State<LoginPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 40),
-              
+
               // Logo and App Name
               Column(
                 children: [
@@ -102,7 +114,7 @@ class _LoginPageState extends State<LoginPage> {
                     height: 80,
                     width: 80,
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
+                      color: Colors.green.withAlpha(25),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -130,9 +142,9 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 40),
-              
+
               // Login Form
               Form(
                 key: _formKey,
@@ -160,9 +172,9 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Password Field
                     TextFormField(
                       controller: _passwordController,
@@ -197,27 +209,13 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Remember Me and Forgot Password
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Row(
-                          children: [
-                            Checkbox(
-                              value: _rememberMe,
-                              onChanged: (value) {
-                                setState(() {
-                                  _rememberMe = value ?? false;
-                                });
-                              },
-                              activeColor: Colors.green,
-                            ),
-                            const Text('Remember me'),
-                          ],
-                        ),
                         TextButton(
                           onPressed: _forgotPassword,
                           child: const Text(
@@ -227,9 +225,9 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Login Button
                     SizedBox(
                       width: double.infinity,
@@ -250,7 +248,8 @@ class _LoginPageState extends State<LoginPage> {
                                 width: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
                                 ),
                               )
                             : const Text(
@@ -265,9 +264,9 @@ class _LoginPageState extends State<LoginPage> {
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // Divider
               Row(
                 children: [
@@ -285,56 +284,31 @@ class _LoginPageState extends State<LoginPage> {
                   Expanded(child: Divider(color: Colors.grey[300])),
                 ],
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Social Login Buttons
-              Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        // Google login implementation
-                      },
-                      icon: const Icon(Icons.g_mobiledata, color: Colors.red),
-                      label: const Text('Continue with Google'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black87,
-                        side: BorderSide(color: Colors.grey[300]!),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    _logInWithGoogle();
+                  },
+                  icon:  Icon(Icons.g_mobiledata_rounded, color: Colors.red),
+                  label: const Text('Continue with Google'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.black87,
+                    side: BorderSide(color: Colors.grey[300]!),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  
-                  const SizedBox(height: 12),
-                  
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        // Apple login implementation
-                      },
-                      icon: const Icon(Icons.apple, color: Colors.black),
-                      label: const Text('Continue with Apple'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black87,
-                        side: BorderSide(color: Colors.grey[300]!),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // Sign Up Link
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,

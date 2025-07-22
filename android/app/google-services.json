@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "785799913360",
+    "project_id": "nutrinotionbyn5n",
+    "storage_bucket": "nutrinotionbyn5n.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:785799913360:android:1b3477c1478f2b93be9d15",
+        "android_client_info": {
+          "package_name": "com.example.nutrinotion_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4grtwQW-8G_IxGRNQhQZ5zCwIkfcx3CU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

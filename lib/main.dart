@@ -1,9 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:nutrinotion_app/views/onboarding/onboarding_page.dart';
-import 'package:nutrinotion_app/views/auth/login.dart';
+import 'package:provider/provider.dart';
+import 'package:nutrinotion_app/firebase_options.dart';
+import 'package:nutrinotion_app/views/auth/login_page.dart';
+import 'package:nutrinotion_app/views/landing/landing_page.dart';
 import 'package:nutrinotion_app/views/auth/signup.dart';
+import 'package:nutrinotion_app/views/home/home_page.dart';
+import 'package:nutrinotion_app/backend/providers/auth_provider.dart';
+import 'package:nutrinotion_app/backend/providers/user_provider.dart';
+import 'package:nutrinotion_app/backend/providers/nutrition_provider.dart';
 
-void main() {
+import 'package:firebase_core/firebase_core.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  } catch (e) {
+    print('Firebase initialization failed: $e');
+    // Continue running the app even if Firebase fails to initialize
+    // You can show a message to the user or handle this gracefully
+  }
+  
   runApp(const MyApp());
 }
 
@@ -12,20 +30,27 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'NutriNotion',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.green,
-        fontFamily: 'Roboto',
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => NutritionProvider()),
+      ],
+      child: MaterialApp(
+        title: 'NutriNotion',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          primarySwatch: Colors.green,
+          fontFamily: 'Roboto',
+          visualDensity: VisualDensity.adaptivePlatformDensity,
+        ),
+        home: const LandingPage(),
+        routes: {
+          '/login': (context) => const LoginPage(),
+          '/home': (context) => const HomePage(),
+          '/signup': (context) => const SignUpPage(),
+        },
       ),
-      home: const OnboardingPage(),
-      routes: {
-        '/login': (context) => const LoginPage(),
-        '/home': (context) => const HomeScreen(),
-        '/signup': (context) => const SignUpPage(),
-      },
     );
   }
 }
@@ -37,36 +62,12 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('NutriNotion Home'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-      ),
+      backgroundColor: Colors.white,
       body: const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.home,
-              size: 100,
-              color: Colors.green,
-            ),
-            SizedBox(height: 20),
-            Text(
-              'Welcome to NutriNotion!',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 10),
-            Text(
-              'Your nutrition journey starts here.',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
-            ),
+            
           ],
         ),
       ),

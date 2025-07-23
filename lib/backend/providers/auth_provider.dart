@@ -181,6 +181,9 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  // get current user
+  User? get currentUser => _user;
+
   // Delete account
   Future<bool> deleteAccount() async {
     try {

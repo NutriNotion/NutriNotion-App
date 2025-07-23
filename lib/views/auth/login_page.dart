@@ -1,9 +1,12 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:nutrinotion_app/backend/providers/auth_provider.dart';
 import 'package:nutrinotion_app/const/custom_colors.dart';
-import 'package:provider/provider.dart';
+import 'package:nutrinotion_app/const/page_transitions.dart';
+import 'package:nutrinotion_app/views/auth/signup.dart';
+import 'package:nutrinotion_app/views/home/home_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -22,7 +25,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   void initState() {
     super.initState();
     _rotationController = AnimationController(
-      duration: const Duration(seconds: 340), // slower, smoother
+      duration: const Duration(seconds: 140), // slower, smoother
       vsync: this,
     )..repeat();
   }
@@ -62,12 +65,12 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     authProvider.signIn(_emailController.text.trim(), _passwordController.text.trim()).then((success) {
       if (success) {
-        Navigator.pushReplacementNamed(context, '/home');
+        context.pushReplacementFade(const HomePage(), duration: 600);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(authProvider.errorMessage ?? 'Login failed'),
-            backgroundColor: const Color.fromARGB(255, 21, 21, 21),
+            backgroundColor: Colors.red,
           ),
         );
       }
@@ -303,7 +306,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                       ),
                                       GestureDetector(
                                         onTap: () {
-                                          Navigator.pushNamed(context, '/signup');
+                                          context.pushFade(const SignUpPage(), duration: 400);
                                         },
                                         child: Text(" Sign Up",
                                             style: GoogleFonts.lato(

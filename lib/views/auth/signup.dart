@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:nutrinotion_app/backend/providers/auth_provider.dart';
+import 'package:nutrinotion_app/backend/providers/user_provider.dart';
 import 'package:nutrinotion_app/const/custom_colors.dart';
+import 'package:nutrinotion_app/const/page_transitions.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -99,6 +101,7 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
     }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
     
     final success = await authProvider.signUp(
       _emailController.text.trim(),
@@ -108,22 +111,29 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
 
     if (mounted) {
       if (success) {
+        // Initialize user data in UserProvider
+        userProvider.initializeUser(
+          userId: authProvider.currentUser?.uid,
+          name: _fullNameController.text.trim(),
+          email: _emailController.text.trim(),
+        );
+
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Account created successfully!'),
-            backgroundColor: Color.fromARGB(255, 29, 29, 29),
+            backgroundColor: Colors.green,
           ),
         );
 
-        // Navigate to login screen
-        Navigator.pushReplacementNamed(context, '/home');
+        // Navigate to onboarding flow with fade transition
+        Navigator.pushNamedAndRemoveUntil(context, '/height-weight', (route) => false);
       } else {
         // Show error message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(authProvider.errorMessage ?? 'Sign up failed'),
-            backgroundColor: Color.fromARGB(255, 29, 29, 29),
+            backgroundColor: Colors.red,
           ),
         );
       }

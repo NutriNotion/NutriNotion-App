@@ -1,6 +1,9 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nutrinotion_app/const/custom_colors.dart';
+import 'package:nutrinotion_app/const/page_transitions.dart';
+import 'package:nutrinotion_app/views/auth/login_page.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -9,19 +12,23 @@ class LandingPage extends StatefulWidget {
   State<LandingPage> createState() => _LandingPageState();
 }
 
-class _LandingPageState extends State<LandingPage> {
+class _LandingPageState extends State<LandingPage> with SingleTickerProviderStateMixin {
   // Single image instead of a list
   final String _image = "assets/images/landing3.png";
+  AnimationController? _rotationController;
 
   @override
   void initState() {
     super.initState();
-    // No need for auto-scroll or page controller anymore
+    _rotationController = AnimationController(
+      duration: const Duration(seconds: 140), // slower, smoother
+      vsync: this,
+    )..repeat();
   }
 
   @override
   void dispose() {
-    // No page controller to dispose anymore
+    _rotationController?.dispose();
     super.dispose();
   }
 
@@ -49,17 +56,26 @@ class _LandingPageState extends State<LandingPage> {
                         alignment: Alignment.center,
                         width: double.infinity,
                         height: double.infinity,
-                        child: Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: Image.asset(
-                            _image,
-                            height: 360,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
+                        child: _rotationController != null
+                            ? AnimatedBuilder(
+                                animation: _rotationController!,
+                                builder: (context, child) {
+                                  return Transform.rotate(
+                                    angle: _rotationController!.value * 2 * math.pi,
+                                    child: child,
+                                  );
+                                },
+                                child: Image.asset(
+                                  _image,
+                                  height: 360,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : Image.asset(
+                                _image,
+                                height: 360,
+                                fit: BoxFit.cover,
+                              ),
                       ),
 
                       Positioned(
@@ -197,7 +213,7 @@ class _LandingPageState extends State<LandingPage> {
                           children: [
                             GestureDetector(
                               onTap: () {
-                                Navigator.pushNamed(context, '/login');
+                                context.pushFade(const LoginPage(), duration: 500);
                               },
                               child: Container(
                                 width: double.infinity,

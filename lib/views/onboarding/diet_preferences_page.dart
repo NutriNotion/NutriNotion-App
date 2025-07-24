@@ -575,6 +575,33 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
     }
   }
 
+  double _calculateCalories(String gender, int weight, double height, int age, String activityLevel) {
+    double bmr = bmrCalculate(gender, weight, height, age);
+    double activity = activityFactor(activityLevel);
+    return bmr * activity;
+  }
+
+  double bmrCalculate(String gender, int weight, double height, int age) {
+    if(gender.toLowerCase() == "male") {
+      return (10 * weight) + (6.25 * height) - (5 * age) + 5;
+    } else {
+      return (10 * weight) + (6.25 * height) - (5 * age) - 161;
+    }
+  }
+
+  double activityFactor(String activity) {
+    switch(activity.toLowerCase()) {
+      case 'sedentary':
+        return 1.2;
+      case 'moderate':
+        return 1.55;
+      case 'active':
+        return 1.725;
+      default:
+        return 1.2; // Default to sedentary if unknown
+    }
+  }
+
   void _saveAndContinue() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     
@@ -584,6 +611,19 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
       allergies: _selectedAllergies,
       dislikedFoods: _dislikedFoods,
     );
+
+    // Calculate calorie target based on user data
+    final user = userProvider.user;
+    double calorieTarget = _calculateCalories(
+      user.gender ?? '',
+      user.weight ?? 0,
+      user.height ?? 0,
+      user.age ?? 0,
+      user.activityLevel ?? '',
+    );
+
+    // Update user model with calorie target
+    userProvider.updateCalorieTarget (calorieTarget.toInt());
 
     try {
       // Save to Firestore and mark profile as complete

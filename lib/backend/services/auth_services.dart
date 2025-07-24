@@ -49,17 +49,6 @@ class AuthServices {
     }
   }
 
-  // Update user email
-  Future<void> updateEmail(String newEmail) async {
-    try {
-      await _auth.currentUser?.updateEmail(newEmail);
-    } on FirebaseAuthException catch (e) {
-      throw _handleFirebaseAuthException(e);
-    } catch (e) {
-      throw Exception('Failed to update email');
-    }
-  }
-
   // Update user password
   Future<void> updatePassword(String newPassword) async {
     try {

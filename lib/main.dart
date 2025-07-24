@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nutrinotion_app/backend/providers/personalized_food_provider.dart';
 import 'package:nutrinotion_app/views/onboarding/diet_preferences_page.dart';
 import 'package:nutrinotion_app/views/onboarding/height_weight_page.dart';
 import 'package:nutrinotion_app/views/onboarding/splashscreen.dart';
@@ -14,6 +15,8 @@ import 'package:nutrinotion_app/const/page_transitions.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 
+import 'backend/providers/ai_provider.dart';
+import 'backend/providers/firestore_provider.dart';
 import 'backend/providers/mess_provider.dart';
 import 'backend/providers/user_provider.dart';
 import 'views/onboarding/lifestyle_goal_page.dart';
@@ -41,8 +44,11 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => FirestoreProvider()),
         ChangeNotifierProvider(create: (_) => MessProvider()),
+        ChangeNotifierProvider(create: (_) => AiProvider()),
         ChangeNotifierProvider(create: (_) => NutritionProvider()),
+        ChangeNotifierProvider(create: (_) => PersonalizedFoodProvider())
       ],
       child: MaterialApp(
         title: 'NutriNotion',

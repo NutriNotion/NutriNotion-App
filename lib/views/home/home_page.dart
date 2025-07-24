@@ -1,5 +1,9 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:nutrinotion_app/backend/models/user_model.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nutrinotion_app/backend/providers/auth_provider.dart';
@@ -8,6 +12,11 @@ import 'package:nutrinotion_app/backend/services/mess_service.dart';
 import 'package:nutrinotion_app/const/custom_colors.dart';
 import 'package:nutrinotion_app/const/page_transitions.dart';
 import 'package:nutrinotion_app/views/auth/login_page.dart';
+
+import '../../backend/providers/ai_provider.dart';
+import '../../backend/providers/firestore_provider.dart';
+import '../../backend/providers/personalized_food_provider.dart';
+import '../../backend/services/calorie_tracking_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,10 +28,15 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final MessService _messService = MessService();
-  
+
   // Track completed individual items
   final Set<String> _completedItems = <String>{};
   
+  // Current day of the week
+  String _currentDay = '';
+
+  final currentDay = DateFormat('EEEE').format(DateTime.now());
+
   // Check if it's past meal time
   bool _isMealTimePassed(String mealType) {
     final now = DateTime.now().hour;
@@ -40,22 +54,69 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  // Determine which meal type based on current time
+  String _determineMealType(DateTime time) {
+    final hour = time.hour;
+    
+    if (hour >= 6 && hour < 11) {
+      return 'Breakfast';
+    } else if (hour >= 11 && hour < 15) {
+      return 'Lunch';
+    } else if (hour >= 15 && hour < 19) {
+      return 'Snacks';
+    } else {
+      return 'Dinner';
+    }
+  }
+
+  // Check if it's a future meal (before its designated time)
+  bool _isFutureMeal(String mealType) {
+    final now = DateTime.now().hour;
+    switch (mealType.toLowerCase()) {
+      case 'breakfast':
+        return now < 6; // Before 6 AM
+      case 'lunch':
+        return now < 12; // Before 12 PM
+      case 'snacks':
+        return now < 16; // Before 4 PM
+      case 'dinner':
+        return now < 18; // Before 6 PM
+      default:
+        return false;
+    }
+  }
+
   // Get appropriate icon for food items
   IconData _getFoodIcon(String foodName) {
     final name = foodName.toLowerCase();
-    if (name.contains('rice') || name.contains('biryani') || name.contains('dal')) {
+    if (name.contains('rice') ||
+        name.contains('biryani') ||
+        name.contains('dal')) {
       return Icons.rice_bowl;
-    } else if (name.contains('roti') || name.contains('paratha') || name.contains('bread')) {
+    } else if (name.contains('roti') ||
+        name.contains('paratha') ||
+        name.contains('bread')) {
       return Icons.bakery_dining;
-    } else if (name.contains('curry') || name.contains('sabzi') || name.contains('sambar')) {
+    } else if (name.contains('curry') ||
+        name.contains('sabzi') ||
+        name.contains('sambar')) {
       return Icons.soup_kitchen;
-    } else if (name.contains('chai') || name.contains('tea') || name.contains('coffee')) {
+    } else if (name.contains('chai') ||
+        name.contains('tea') ||
+        name.contains('coffee')) {
       return Icons.local_cafe;
-    } else if (name.contains('samosa') || name.contains('pakora') || name.contains('puri')) {
+    } else if (name.contains('samosa') ||
+        name.contains('pakora') ||
+        name.contains('puri')) {
       return Icons.fastfood;
-    } else if (name.contains('idli') || name.contains('upma') || name.contains('poha')) {
+    } else if (name.contains('idli') ||
+        name.contains('upma') ||
+        name.contains('poha')) {
       return Icons.breakfast_dining;
-    } else if (name.contains('paneer') || name.contains('chicken') || name.contains('egg') || name.contains('fish')) {
+    } else if (name.contains('paneer') ||
+        name.contains('chicken') ||
+        name.contains('egg') ||
+        name.contains('fish')) {
       return Icons.dinner_dining;
     } else {
       return Icons.restaurant;
@@ -63,7 +124,43 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    
+    // Initialize current day
+    _currentDay = DateTime.now().toString().split(' ')[0];
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final aiProvider = Provider.of<AiProvider>(context, listen: false);
+      final firestoreProvider = Provider.of<FirestoreProvider>(context, listen: false);
+      final personalizedFoodProvider = Provider.of<PersonalizedFoodProvider>(context, listen: false);
+      
+      // Get personalized food data
+      await personalizedFoodProvider.getPersonalizedFood(authProvider.userId ?? '');
+      
+      final res = await aiProvider.getUserDetails(authProvider.userId ?? '');
+      final menu = await aiProvider.getMenuDetails();
+
+      if (res != null && menu.isNotEmpty && authProvider.userId != null) {
+        final check = await firestoreProvider.checkForPersonalizedFood(authProvider.userId ?? '');
+        if (check == false) {
+          return;
+        }
+        final aiData = aiProvider.formatDataForAI(res, menu);
+        final recommendations =
+            await aiProvider.generateRecommendations(aiData);
+        await firestoreProvider.updatePersonalizedMenu(
+            authProvider.userId ?? '', recommendations);
+      } else {
+        print("Failed to fetch user details or menu.");
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final personalizedFoodProvider = Provider.of<PersonalizedFoodProvider>(context);
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: const Color.fromARGB(255, 255, 251, 247),
@@ -74,7 +171,7 @@ class _HomePageState extends State<HomePage> {
             // Welcome Section
             _buildWelcomeSection(),
             SizedBox(height: 16),
-            
+
             // Main Content
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -83,14 +180,14 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   // Daily Progress (moved to top)
                   _buildTotalCaloriesSummary(),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // View Full Menu Button (moved to top)
                   _buildViewFullMenuButton(),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Meal Plan Title
                   Text(
                     'Today\'s Personalized Meal Plan',
@@ -102,40 +199,49 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 24),
                   
-                  // Breakfast Section
-                  _buildMealSection('Breakfast', [
-                    {'name': 'Idli Sambar', 'quantity': '3 pieces', 'calories': 180},
-                    {'name': 'Coconut Chutney', 'quantity': '2 tbsp', 'calories': 45},
-                  ]),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Lunch Section
-                  _buildMealSection('Lunch', [
-                    {'name': 'Dal Rice', 'quantity': '1 bowl', 'calories': 350},
-                    {'name': 'Mixed Vegetables', 'quantity': '1 serving', 'calories': 120},
-                  ]),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Snacks Section
-                  _buildMealSection('Snacks', [
-                    {'name': 'Banana', 'quantity': '1 medium', 'calories': 105},
-                  ]),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Dinner Section
-                  _buildMealSection('Dinner', [
-                    {'name': 'Roti', 'quantity': '2 pieces', 'calories': 140},
-                    {'name': 'Paneer Sabzi', 'quantity': '1 serving', 'calories': 250},
-                  ]),
-                  
+                  personalizedFoodProvider.isLoading
+                  ? Center(child: CircularProgressIndicator(
+                      color: primaryColor,
+                      strokeWidth: 2.5,
+                  ))
+                  : personalizedFoodProvider.errorMessage != null
+                      ? Center(child: Text(personalizedFoodProvider.errorMessage!))
+                  : personalizedFoodProvider.personalizedMenu != null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (personalizedFoodProvider.personalizedMenu![currentDay]?['Breakfast'] != null)
+                              _buildMealSection(
+                                  'Breakfast',
+                                  List<Map<String, dynamic>>.from(
+                                      personalizedFoodProvider.personalizedMenu![currentDay]['Breakfast'])),
+                            const SizedBox(height: 20),
+                            if (personalizedFoodProvider.personalizedMenu![currentDay]?['Lunch'] != null)
+                              _buildMealSection(
+                                  'Lunch',
+                                  List<Map<String, dynamic>>.from(
+                                      personalizedFoodProvider.personalizedMenu![currentDay]['Lunch'])),
+                            const SizedBox(height: 20),
+                            if (personalizedFoodProvider.personalizedMenu![currentDay]?['Snacks'] != null)
+                              _buildMealSection(
+                                  'Snacks',
+                                  List<Map<String, dynamic>>.from(
+                                      personalizedFoodProvider.personalizedMenu![currentDay]['Snacks'])),
+                            const SizedBox(height: 20),
+                            if (personalizedFoodProvider.personalizedMenu![currentDay]?['Dinner'] != null)
+                              _buildMealSection(
+                                  'Dinner',
+                                  List<Map<String, dynamic>>.from(
+                                      personalizedFoodProvider.personalizedMenu![currentDay]['Dinner'])),
+                          ],
+                        )
+                      : Center(child: Text('No personalized menu available.')),
+
                   const SizedBox(height: 24),
-                  
+
                   // Health Tip
                   _buildHealthTip(),
-                  
+
                   const SizedBox(height: 40),
                 ],
               ),
@@ -297,7 +403,8 @@ class _HomePageState extends State<HomePage> {
             spacing: 16,
             children: [
               IconButton(
-                icon: const Icon(Icons.menu, color: Color.fromARGB(255, 31, 31, 31)),
+                icon: const Icon(Icons.menu,
+                    color: Color.fromARGB(255, 31, 31, 31)),
                 onPressed: () => _scaffoldKey.currentState?.openDrawer(),
               ),
               Text(
@@ -310,48 +417,64 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
-          // const SizedBox(height: 20),
-          // Greeting
-          // Consumer2<AuthProvider, UserProvider>(
-          //   builder: (context, authProvider, userProvider, child) {
-          //     final timeOfDay = DateTime.now().hour;
-          //     String greeting = 'Good Evening';
-              
-          //     if (timeOfDay >= 5 && timeOfDay < 12) {
-          //       greeting = 'Good Morning';
-          //     } else if (timeOfDay >= 12 && timeOfDay < 17) {
-          //       greeting = 'Good Afternoon';
-          //     } else {
-          //       greeting = 'Good Evening';
-          //     }
-              
-          //     final userName = authProvider.userDisplayName?.split(' ').first ?? 'User';
-
-          //     return Text(
-          //       '$greeting, $userName!',
-          //       style: GoogleFonts.lato(
-          //         fontSize: 20,
-          //         fontWeight: FontWeight.bold,
-          //         color: Colors.black87,
-          //       ),
-          //     );
-          //   },
-          // ),
         ],
       ),
     );
   }
 
-
-
   Widget _buildMealSection(String mealType, List<Map<String, dynamic>> items) {
-    int totalCalories = items.fold(0, (sum, item) => sum + (item['calories'] as int));
+
+    debugPrint(items.toString());
+
+    if (items.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.no_meals,
+                color: Colors.grey[600],
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'No items available for $mealType',
+              style: GoogleFonts.lato(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    int totalCalories =
+        items.fold(0, (sum, item) => sum + (int.tryParse(item['calories'].toString()) ?? 0));
     bool isTimePassed = _isMealTimePassed(mealType);
-    
+    bool isFutureMeal = _isFutureMeal(mealType);
+
     // Check if all items in this meal are completed
-    bool allItemsCompleted = items.every((item) => 
-        _completedItems.contains('${mealType.toLowerCase()}_${item['name']}'));
-    
+    bool allItemsCompleted = items.every((item) => item['isChecked'] == true);
+
+    // Get count of completed items
+    int completedCount = items
+        .where((item) => item['isChecked'] == true)
+        .length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -359,14 +482,38 @@ class _HomePageState extends State<HomePage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              mealType.toUpperCase(),
-              style: GoogleFonts.lato(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: allItemsCompleted ? Colors.grey : const Color.fromARGB(255, 27, 27, 27),
-                letterSpacing: 1.2
-              ),
+            Row(
+              children: [
+                Text(
+                  mealType.toUpperCase(),
+                  style: GoogleFonts.lato(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: allItemsCompleted
+                          ? Colors.grey
+                          : const Color.fromARGB(255, 27, 27, 27),
+                      letterSpacing: 1.2),
+                ),
+                if (completedCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: allItemsCompleted ? Colors.green : Colors.orange,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$completedCount/${items.length}',
+                      style: GoogleFonts.lato(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
             Row(
               children: [
@@ -392,6 +539,12 @@ class _HomePageState extends State<HomePage> {
                     color: Colors.green,
                     size: 24,
                   )
+                else if (isFutureMeal)
+                  Icon(
+                    Icons.schedule,
+                    color: Colors.blue[400],
+                    size: 20,
+                  )
                 else if (isTimePassed)
                   Icon(
                     Icons.access_time_filled,
@@ -403,14 +556,15 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         const SizedBox(height: 12),
-        
+
         // Meal items
         ...items.asMap().entries.map((entry) {
           final item = entry.value;
-          final itemKey = '${mealType.toLowerCase()}_${item['name']}';
-          final isItemCompleted = _completedItems.contains(itemKey);
+          final itemKey = '${mealType.toLowerCase()}_${item['item']}';
+          final isItemCompleted = item['isChecked'] ?? false; // Get checked status from item data
           final shouldBeGrayedOut = isItemCompleted || isTimePassed;
-          
+          final canToggle = !isFutureMeal; // Disable toggle for future meals
+
           return Container(
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(16),
@@ -418,15 +572,18 @@ class _HomePageState extends State<HomePage> {
               color: shouldBeGrayedOut ? Colors.grey[100] : Colors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: shouldBeGrayedOut ? Colors.grey.shade300 : Colors.grey.shade200
-              ),
-              boxShadow: shouldBeGrayedOut ? [] : [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.05),
-                  blurRadius: 5,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+                  color: shouldBeGrayedOut
+                      ? Colors.grey.shade300
+                      : Colors.grey.shade200),
+              boxShadow: shouldBeGrayedOut
+                  ? []
+                  : [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.05),
+                        blurRadius: 5,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
             ),
             child: Row(
               children: [
@@ -434,13 +591,13 @@ class _HomePageState extends State<HomePage> {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: shouldBeGrayedOut 
-                        ? Colors.grey.withOpacity(0.3) 
+                    color: shouldBeGrayedOut
+                        ? Colors.grey.withOpacity(0.3)
                         : primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
-                    Icons.restaurant,
+                    isFutureMeal ? Icons.schedule : Icons.restaurant,
                     color: shouldBeGrayedOut ? Colors.grey : primaryColor,
                     size: 24,
                   ),
@@ -451,47 +608,146 @@ class _HomePageState extends State<HomePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        item['name'],
+                        item['item'],
                         style: GoogleFonts.lato(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: shouldBeGrayedOut ? Colors.grey[600] : Colors.black87,
-                          decoration: isItemCompleted ? TextDecoration.lineThrough : null,
+                          color: shouldBeGrayedOut
+                              ? Colors.grey[600]
+                              : Colors.black87,
+                          decoration: isItemCompleted
+                              ? TextDecoration.lineThrough
+                              : null,
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        '${item['quantity']} • ${item['calories']} kcal',
-                        style: GoogleFonts.lato(
-                          fontSize: 12,
-                          color: shouldBeGrayedOut ? Colors.grey[500] : Colors.grey[600],
-                          decoration: isItemCompleted ? TextDecoration.lineThrough : null,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            '${item['quantity']} • ${item['calories']} kcal',
+                            style: GoogleFonts.lato(
+                              fontSize: 12,
+                              color: shouldBeGrayedOut
+                                  ? Colors.grey[500]
+                                  : Colors.grey[600],
+                              decoration: isItemCompleted
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                            ),
+                          ),
+                          if (isFutureMeal) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 4, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: Colors.blue.withOpacity(0.3),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.schedule,
+                                    size: 10,
+                                    color: Colors.blue[600],
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    'Soon',
+                                    style: GoogleFonts.lato(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.blue[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
                 ),
-                if (!isItemCompleted && !isTimePassed)
-                  GestureDetector(
-                    onTap: () => _toggleItemCompletion(itemKey, item['name'], mealType),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
+                if (canToggle)
+                  Tooltip(
+                    message: isItemCompleted
+                        ? 'Mark as incomplete'
+                        : 'Mark as completed',
+                    child: GestureDetector(
+                      onTap: () => _toggleItemCompletion(
+                          itemKey, 
+                          item['item'], 
+                          mealType,
+                          int.parse(item['calories'].toString())),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isTimePassed
+                              ? (isItemCompleted
+                                  ? Colors.grey.withAlpha(40)
+                                  : Colors.grey.withAlpha(20))
+                              : (isItemCompleted
+                                  ? Colors.orange.withOpacity(0.1)
+                                  : Colors.green.withOpacity(0.1)),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isTimePassed
+                                ? (isItemCompleted
+                                    ? Colors.grey.withOpacity(0.4)
+                                    : Colors.grey.withOpacity(0.3))
+                                : (isItemCompleted
+                                    ? Colors.orange.withOpacity(0.3)
+                                    : Colors.green.withOpacity(0.3)),
+                            width: 1,
+                          ),
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: Icon(
+                            isItemCompleted ? Icons.close : Icons.check,
+                            key: ValueKey(isItemCompleted),
+                            color: isTimePassed
+                                ? (isItemCompleted
+                                    ? Colors.grey[600]
+                                    : Colors.grey[500])
+                                : (isItemCompleted
+                                    ? Colors.orange
+                                    : Colors.green),
+                            size: 20,
+                          ),
+                        ),
                       ),
-                      child: Icon(
-                        Icons.check,
-                        color: Colors.green,
-                        size: 20,
+                    ),
+                  )
+                else if (isFutureMeal)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.blue.withOpacity(0.2),
+                        width: 1,
                       ),
+                    ),
+                    child: Icon(
+                      Icons.schedule,
+                      color: Colors.blue[400],
+                      size: 20,
                     ),
                   ),
               ],
             ),
           );
-        }).toList(),
-        
+        }),
+
         // Total calories for this meal
         Container(
           margin: const EdgeInsets.only(top: 8),
@@ -499,21 +755,26 @@ class _HomePageState extends State<HomePage> {
           decoration: BoxDecoration(
             gradient: allItemsCompleted || isTimePassed
                 ? LinearGradient(
-                    colors: [Colors.grey.withOpacity(0.2), Colors.grey.withOpacity(0.1)],
+                    colors: [
+                      Colors.grey.withOpacity(0.2),
+                      Colors.grey.withOpacity(0.1)
+                    ],
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                   )
                 : LinearGradient(
-                    colors: [primaryColor.withOpacity(0.1), primaryColor.withOpacity(0.05)],
+                    colors: [
+                      primaryColor.withOpacity(0.1),
+                      primaryColor.withOpacity(0.05)
+                    ],
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                   ),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: allItemsCompleted || isTimePassed
-                  ? Colors.grey.withOpacity(0.5) 
-                  : primaryColor.withOpacity(0.3)
-            ),
+                color: allItemsCompleted || isTimePassed
+                    ? Colors.grey.withOpacity(0.5)
+                    : primaryColor.withOpacity(0.3)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -523,8 +784,11 @@ class _HomePageState extends State<HomePage> {
                 style: GoogleFonts.lato(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: allItemsCompleted || isTimePassed ? Colors.grey[600] : primaryColor,
-                  decoration: allItemsCompleted ? TextDecoration.lineThrough : null,
+                  color: allItemsCompleted || isTimePassed
+                      ? Colors.grey[600]
+                      : primaryColor,
+                  decoration:
+                      allItemsCompleted ? TextDecoration.lineThrough : null,
                 ),
               ),
               Text(
@@ -532,8 +796,11 @@ class _HomePageState extends State<HomePage> {
                 style: GoogleFonts.lato(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: allItemsCompleted || isTimePassed ? Colors.grey[600] : primaryColor,
-                  decoration: allItemsCompleted ? TextDecoration.lineThrough : null,
+                  color: allItemsCompleted || isTimePassed
+                      ? Colors.grey[600]
+                      : primaryColor,
+                  decoration:
+                      allItemsCompleted ? TextDecoration.lineThrough : null,
                 ),
               ),
             ],
@@ -544,92 +811,181 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildTotalCaloriesSummary() {
-    const totalCalories = 1190; // Sum of all meals
+    final personalizedFoodProvider = Provider.of<PersonalizedFoodProvider>(context);
+    final totalCalories = personalizedFoodProvider.totalCalories;
     const targetCalories = 1400; // This should come from user's profile
     final progress = totalCalories / targetCalories;
+    final remainingCalories = targetCalories - totalCalories;
     
+    // Calculate status color
+    Color statusColor;
+    String statusText;
+    if (progress >= 1.2) {
+      statusColor = Colors.red;
+      statusText = 'Exceeded Target';
+    } else if (progress >= 1.0) {
+      statusColor = Colors.orange;
+      statusText = 'Target Reached';
+    } else if (progress >= 0.8) {
+      statusColor = Colors.green;
+      statusText = 'Almost There';
+    } else {
+      statusColor = Colors.white;
+      statusText = 'In Progress';
+    }
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [primaryColor, primaryColor.withOpacity(0.8)],
+          colors: [primaryColor, primaryColor.withOpacity(0.85)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             color: primaryColor.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Daily Progress',
-            style: GoogleFonts.lato(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Daily Progress',
+                    style: GoogleFonts.lato(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Today\'s Calorie Intake',
+                    style: GoogleFonts.lato(
+                      fontSize: 12,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: statusColor.withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  statusText,
+                  style: GoogleFonts.lato(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Total Calories: $totalCalories / $targetCalories kcal',
-            style: GoogleFonts.lato(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$totalCalories',
+                    style: GoogleFonts.lato(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    'of $targetCalories kcal',
+                    style: GoogleFonts.lato(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    remainingCalories > 0 ? '$remainingCalories' : '0',
+                    style: GoogleFonts.lato(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    'kcal remaining',
+                    style: GoogleFonts.lato(
+                      fontSize: 12,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Container(
-            height: 8,
+            height: 10,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(4),
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(5),
             ),
             child: FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: progress > 1.0 ? 1.0 : progress,
               child: Container(
                 decoration: BoxDecoration(
-                  color: progress > 1.0 ? Colors.orange : Colors.white,
-                  borderRadius: BorderRadius.circular(4),
+                  gradient: LinearGradient(
+                    colors: [
+                      statusColor,
+                      statusColor.withOpacity(0.8),
+                    ],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                  borderRadius: BorderRadius.circular(5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: statusColor.withOpacity(0.5),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${(progress * 100).toInt()}% of daily goal',
-                style: GoogleFonts.lato(
-                  fontSize: 12,
-                  color: Colors.white.withOpacity(0.9),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  progress > 1.0 ? 'Over Target' : 'On Track',
-                  style: GoogleFonts.lato(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
+          Text(
+            '${(progress * 100).toInt()}% of daily target',
+            style: GoogleFonts.lato(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.white70,
+            ),
           ),
         ],
       ),
@@ -679,7 +1035,47 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _toggleItemCompletion(String itemKey, String itemName, String mealType) {
+  void _toggleItemCompletion(String itemKey, String itemName, String mealType, int calories) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final calorieTrackingService = CalorieTrackingService();
+    final personalizedFoodProvider = Provider.of<PersonalizedFoodProvider>(context, listen: false);
+    final today = UserModel.formatDate(DateTime.now());
+    final currentDay = DateFormat('EEEE').format(DateTime.now());
+
+    // Find and update the item in personalizedMenu
+    if (personalizedFoodProvider.personalizedMenu != null && 
+        personalizedFoodProvider.personalizedMenu![currentDay] != null) {
+      final mealItems = List<Map<String, dynamic>>.from(
+          personalizedFoodProvider.personalizedMenu![currentDay][mealType]);
+      
+      for (var i = 0; i < mealItems.length; i++) {
+        if (mealItems[i]['item'] == itemName) {
+          final bool currentCheckedState = mealItems[i]['isChecked'] ?? false;
+          mealItems[i]['isChecked'] = !currentCheckedState;
+          
+          // Update the menu in Firestore
+          await personalizedFoodProvider.updatePersonalizedFood(
+            userId: authProvider.userId ?? '',
+            day: currentDay,
+            mealType: mealType,
+            updatedItems: mealItems
+          );
+
+          // Update calories
+          calorieTrackingService.updateCalorieIntake(
+            userId: authProvider.userId ?? '',
+            date: today,
+            calories: calories,
+            isIncrement: !currentCheckedState,
+            itemKey: itemKey,
+            itemName: itemName,
+            mealType: mealType
+          );
+          break;
+        }
+      }
+    }
+
     setState(() {
       if (_completedItems.contains(itemKey)) {
         _completedItems.remove(itemKey);
@@ -687,18 +1083,35 @@ class _HomePageState extends State<HomePage> {
         _completedItems.add(itemKey);
       }
     });
-    
+
+    final isNowCompleted = _completedItems.contains(itemKey);
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          _completedItems.contains(itemKey)
-              ? '$itemName from $mealType marked as completed!'
-              : '$itemName from $mealType marked as incomplete!',
+        content: Row(
+          children: [
+            Icon(
+              isNowCompleted ? Icons.check_circle : Icons.remove_circle,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                isNowCompleted
+                    ? '$itemName from $mealType marked as completed!'
+                    : '$itemName from $mealType marked as incomplete!',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
         ),
-        backgroundColor: _completedItems.contains(itemKey)
-            ? Colors.green
-            : Colors.orange,
+        backgroundColor: isNowCompleted ? Colors.green : Colors.orange,
         duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
       ),
     );
   }
@@ -887,16 +1300,21 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  String _getCurrentDayName() {
+    return DateFormat('EEEE').format(DateTime.now()).toLowerCase();
+  }
+
   Widget _buildMenuList(String mealType, [ScrollController? scrollController]) {
+    final currentDay = _getCurrentDayName();
     return StreamBuilder<DocumentSnapshot>(
-      stream: _messService.getMenuStream("wednesday").cast<DocumentSnapshot>(),
+      stream: _messService.getMenuStream(currentDay).cast<DocumentSnapshot>(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(),
           );
         }
-        
+
         if (snapshot.hasError) {
           return Center(
             child: Column(
@@ -909,7 +1327,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Failed to load menu',
+                  'Failed to load menu for ${currentDay[0].toUpperCase()}${currentDay.substring(1)}',
                   style: GoogleFonts.lato(
                     fontSize: 16,
                     color: Colors.grey[600],
@@ -927,8 +1345,8 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
-                    // Force rebuild the StreamBuilder by changing the stream
-                    setState(() {});
+                    // Instead of setState, we'll just call the stream again
+                    _messService.getMenuStream("wednesday");
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
@@ -943,23 +1361,17 @@ class _HomePageState extends State<HomePage> {
             ),
           );
         }
-        
+
         if (!snapshot.hasData || !snapshot.data!.exists) {
           return const Center(
             child: CircularProgressIndicator(),
           );
         }
-        
+
         final menuData = snapshot.data!.data() as Map<String, dynamic>;
         final itemsRaw = menuData[mealType.toLowerCase()] ?? [];
-        
-        // Convert raw items to list of strings
-        List<String> itemNames = [];
-        if (itemsRaw is List) {
-          itemNames = itemsRaw.cast<String>();
-        }
 
-        if (itemNames.isEmpty) {
+        if (itemsRaw.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -981,6 +1393,12 @@ class _HomePageState extends State<HomePage> {
             ),
           );
         }
+
+        // Convert raw items to list of strings
+        List<String> itemNames = [];
+        if (itemsRaw is List) {
+          itemNames = itemsRaw.cast<String>();
+        }
         
         return ListView.builder(
           controller: scrollController,
@@ -991,7 +1409,7 @@ class _HomePageState extends State<HomePage> {
             
             // Create a simple item map from the string name
             final item = {
-              'name': itemName,
+              'item': itemName,
               'description': 'Delicious $itemName prepared fresh',
               'calories': 200, // Default calories
               'isVegetarian': !itemName.toLowerCase().contains('chicken') && 
@@ -1025,7 +1443,10 @@ class _HomePageState extends State<HomePage> {
                       height: 56,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [primaryColor.withOpacity(0.1), primaryColor.withOpacity(0.05)],
+                          colors: [
+                            primaryColor.withOpacity(0.1),
+                            primaryColor.withOpacity(0.05)
+                          ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -1038,7 +1459,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    
+
                     // Food details
                     Expanded(
                       child: Column(
@@ -1060,7 +1481,8 @@ class _HomePageState extends State<HomePage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            item['description'] as String? ?? 'No description available',
+                            item['description'] as String? ??
+                                'No description available',
                             style: GoogleFonts.lato(
                               fontSize: 13,
                               color: Colors.grey[600],
@@ -1070,12 +1492,13 @@ class _HomePageState extends State<HomePage> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 8),
-                          
+
                           // Calories and category badges
                           Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: primaryColor.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(12),
@@ -1089,30 +1512,12 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 ),
                               ),
-                              // if (item['category'] != null && item['category'].toString().isNotEmpty) ...[
-                              //   const SizedBox(width: 8),
-                              //   Container(
-                              //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              //     decoration: BoxDecoration(
-                              //       color: Colors.grey[100],
-                              //       borderRadius: BorderRadius.circular(12),
-                              //     ),
-                              //     child: Text(
-                              //       item['category'] as String,
-                              //       style: GoogleFonts.lato(
-                              //         fontSize: 10,
-                              //         fontWeight: FontWeight.w500,
-                              //         color: Colors.grey[600],
-                              //       ),
-                              //     ),
-                              //   ),
-                              // ],
                             ],
                           ),
                         ],
                       ),
                     ),
-                    
+
                     // Add button
                     Container(
                       width: 44,
@@ -1129,7 +1534,8 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ),
                       child: IconButton(
-                        icon: const Icon(Icons.add, color: Colors.white, size: 20),
+                        icon: const Icon(Icons.add,
+                            color: Colors.white, size: 20),
                         onPressed: () {
                           Navigator.pop(context);
                           _addToNutritionTracker(item);
@@ -1146,301 +1552,43 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Optional: Method for building menu list for specific days (future use)
-  // ignore: unused_element
-  Widget _buildMenuListForDay(String mealType, String dayOfWeek, [ScrollController? scrollController]) {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: _messService.getMenuStream(dayOfWeek).cast<DocumentSnapshot>(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        }
-        
-        if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 48,
-                  color: Colors.grey[400],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Failed to load menu for ${dayOfWeek[0].toUpperCase()}${dayOfWeek.substring(1)}',
-                  style: GoogleFonts.lato(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  snapshot.error.toString(),
-                  style: GoogleFonts.lato(
-                    fontSize: 12,
-                    color: Colors.grey[500],
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {});
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: Text(
-                    'Retry',
-                    style: GoogleFonts.lato(),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-        
-        if (!snapshot.hasData || !snapshot.data!.exists) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        }
-        
-        final menuData = snapshot.data!.data() as Map<String, dynamic>;
-        final itemsRaw = menuData[mealType.toLowerCase()] ?? [];
-        
-        // Convert raw items to list of strings
-        List<String> itemNames = [];
-        if (itemsRaw is List) {
-          itemNames = itemsRaw.cast<String>();
-        }
-        
-        if (itemNames.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.restaurant_outlined,
-                  size: 48,
-                  color: Colors.grey[400],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No $mealType items available for ${dayOfWeek[0].toUpperCase()}${dayOfWeek.substring(1)}',
-                  style: GoogleFonts.lato(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
+  Future<void> _addToNutritionTracker(Map<String, dynamic> item) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final personalizedFoodProvider = Provider.of<PersonalizedFoodProvider>(context, listen: false);
+    
+    try {
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final mealType = _determineMealType(DateTime.now());
 
-        return ListView.builder(
-          controller: scrollController,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          itemCount: itemNames.length,
-          itemBuilder: (context, index) {
-            final itemName = itemNames[index];
-            
-            // Create a simple item map from the string name
-            final item = {
-              'name': itemName,
-              'description': 'Delicious $itemName prepared fresh',
-              'calories': 200, // Default calories
-              'isVegetarian': !itemName.toLowerCase().contains('chicken') && 
-                             !itemName.toLowerCase().contains('fish') && 
-                             !itemName.toLowerCase().contains('egg') &&
-                             !itemName.toLowerCase().contains('mutton'),
-              'category': 'Indian',
-            };
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-                border: Border.all(color: Colors.grey.shade100),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    // Food icon
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [primaryColor.withOpacity(0.1), primaryColor.withOpacity(0.05)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        _getFoodIcon(item['name'] as String? ?? ''),
-                        color: primaryColor,
-                        size: 26,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    
-                    // Food details
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  item['name'] as String? ?? 'Unknown Item',
-                                  style: GoogleFonts.lato(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ),
-                              if (item['isVegetarian'] == true)
-                                Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    color: Colors.green,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                  child: const Icon(
-                                    Icons.circle,
-                                    color: Colors.white,
-                                    size: 8,
-                                  ),
-                                )
-                              else
-                                Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                  child: const Icon(
-                                    Icons.circle,
-                                    color: Colors.white,
-                                    size: 8,
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            item['description'] as String? ?? 'No description available',
-                            style: GoogleFonts.lato(
-                              fontSize: 13,
-                              color: Colors.grey[600],
-                              height: 1.3,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 8),
-                          
-                          // Calories and category badges
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: primaryColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '${item['calories'] ?? 0} kcal',
-                                  style: GoogleFonts.lato(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: primaryColor,
-                                  ),
-                                ),
-                              ),
-                              if (item['category'] != null && item['category'].toString().isNotEmpty) ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[100],
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    item['category'] as String,
-                                    style: GoogleFonts.lato(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    // Add button
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: primaryColor,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: primaryColor.withOpacity(0.3),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.add, color: Colors.white, size: 20),
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _addToNutritionTracker(item);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
+      await personalizedFoodProvider.addToPersonalizedMenu(
+        userId: authProvider.userId!,
+        day: today,
+        mealType: mealType,
+        newItem: {
+          'item': item['item'],
+          'calories': item['calories'],
+          'quantity': '1 serving',
+          'description': item['description'],
+          'isVegetarian': item['isVegetarian'],
+        },
+      );
 
-  void _addToNutritionTracker(Map<String, dynamic> item) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${item['name']} added to nutrition tracker!'),
-        backgroundColor: primaryColor,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${item['item']} added to your personalized menu!'),
+          backgroundColor: primaryColor,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to add item: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   void _showLogoutDialog(BuildContext context) {
@@ -1466,7 +1614,8 @@ class _HomePageState extends State<HomePage> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              final authProvider =
+                  Provider.of<AuthProvider>(context, listen: false);
               authProvider.signOut().then((success) {
                 if (success) {
                   context.pushReplacementFade(const LoginPage(), duration: 600);

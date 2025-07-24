@@ -109,46 +109,6 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // Update user profile
-  Future<bool> updateProfile({String? displayName, String? email}) async {
-    try {
-      _setLoading(true);
-      _clearError();
-      
-      if (displayName != null && displayName.isNotEmpty) {
-        await _authServices.updateDisplayName(displayName);
-      }
-      
-      if (email != null && email.isNotEmpty) {
-        await _authServices.updateEmail(email);
-      }
-      
-      _setLoading(false);
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _setError(e.toString().replaceFirst('Exception: ', ''));
-      _setLoading(false);
-      return false;
-    }
-  }
-
-  // Update password
-  Future<bool> updatePassword(String newPassword) async {
-    try {
-      _setLoading(true);
-      _clearError();
-      
-      await _authServices.updatePassword(newPassword);
-      _setLoading(false);
-      return true;
-    } catch (e) {
-      _setError(e.toString().replaceFirst('Exception: ', ''));
-      _setLoading(false);
-      return false;
-    }
-  }
-
   // Send email verification
   Future<bool> sendEmailVerification() async {
     try {

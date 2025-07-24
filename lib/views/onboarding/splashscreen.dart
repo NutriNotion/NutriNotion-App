@@ -126,6 +126,8 @@ class _SplashScreenState extends State<SplashScreen>
     } else {
       // User is logged in - update user model with userId
       userProvider.updateUserId(authProvider.userId!);
+      userProvider.updateProfileField("name", authProvider.userDisplayName ?? "");
+      userProvider.updateProfileField("email", authProvider.userEmail ?? "");
       
       // Check their profile status
       try {

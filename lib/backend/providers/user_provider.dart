@@ -77,6 +77,12 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Update Calorie target
+  void updateCalorieTarget(int calorieTarget) {
+    _user.calorieTargetPerDay = calorieTarget;
+    notifyListeners();
+  }
+
   // Update lifestyle and goals
   void updateLifestyleInfo({
     String? activityLevel,

@@ -62,4 +62,101 @@ class FirestoreServices {
       throw Exception('Failed to delete user details: $e');
     }
   }
+
+  // Update Personalized menu
+  Future<void> updatePersonalizedMenu(String userId, Map<String, dynamic> menuData) async {
+    try {
+      menuData['lastGeneratedDate'] = DateTime.now();
+      await _firestore.collection('users').doc(userId).update({'personalizedMenu': menuData});
+    } catch (e) {
+      throw Exception('Failed to update personalized menu: $e');
+    }
+  }
+
+  // Update specific meal items in personalized menu
+  Future<void> updatePersonalizedFood({
+    required String userId,
+    required String day,
+    required String mealType,
+    required List<Map<String, dynamic>> updatedItems
+  }) async {
+    try {
+      // First get the current menu
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        if (data.containsKey('personalizedMenu')) {
+          Map<String, dynamic> personalizedMenu = Map<String, dynamic>.from(data['personalizedMenu']);
+          
+          // Update the specific meal items
+          if (personalizedMenu.containsKey(day)) {
+            personalizedMenu[day][mealType] = updatedItems;
+          }
+          
+          // Update the document
+          await _firestore.collection('users').doc(userId).update({
+            'personalizedMenu': personalizedMenu
+          });
+        }
+      }
+    } catch (e) {
+      throw Exception('Failed to update personalized food: $e');
+    }
+  }
+
+  // Check for Personalized Food
+  Future<bool> checkForPersonalizedFood(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+
+        if(!data.containsKey('personalizedMenu')) {
+          return true;
+        }
+
+        final personalizedMenu = data['personalizedMenu'];
+        print("shouldGenerateMenu" + shouldGenerateMenu(personalizedMenu['lastGeneratedDate']).toString());
+        return shouldGenerateMenu(personalizedMenu['lastGeneratedDate']);
+      }
+      print("Returning false as no personalized menu found");
+      return false;
+    } catch (e) {
+      throw Exception('Failed to check for personalized food: $e');
+    }
+  }
+
+  bool shouldGenerateMenu(DateTime? lastGeneratedDate) {
+    if (lastGeneratedDate == null) return true;
+
+    final now = DateTime.now();
+
+    // Get Monday of current week
+    DateTime startOfCurrentWeek = now.subtract(Duration(days: now.weekday - 1));
+    startOfCurrentWeek = DateTime(startOfCurrentWeek.year, startOfCurrentWeek.month, startOfCurrentWeek.day);
+
+    // Get Monday of the week when the menu was last generated
+    DateTime startOfGeneratedWeek = lastGeneratedDate.subtract(Duration(days: lastGeneratedDate.weekday - 1));
+    startOfGeneratedWeek = DateTime(startOfGeneratedWeek.year, startOfGeneratedWeek.month, startOfGeneratedWeek.day);
+
+    // Check if it's a new week
+    return startOfGeneratedWeek.isBefore(startOfCurrentWeek);
+  }
+
+
+  // Get Personalized Menu Data
+  Future<Map<String, dynamic>> getPersonalizedMenuData(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        if (data.containsKey('personalizedMenu')) {
+          return data['personalizedMenu'] as Map<String, dynamic>;
+        }
+      }
+      return {};
+    } catch (e) {
+      throw Exception('Failed to fetch personalized menu data: $e');
+    }
+  }
 }

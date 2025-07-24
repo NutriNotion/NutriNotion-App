@@ -17,6 +17,27 @@ class PersonalizedFoodProvider with ChangeNotifier {
   Map<String, dynamic>? get personalizedMenu => _personalizedMenu;
   int get totalCalories => _totalCalories;
 
+  int getTotalCaloriesForDate(String date) {
+    if (_personalizedMenu == null || !_personalizedMenu!.containsKey(date)) return 0;
+
+    int total = 0;
+    var meals = _personalizedMenu![date];
+    if (meals is Map) {
+      meals.forEach((mealType, items) {
+        if (items is List) {
+          for (var item in items) {
+            if (item is Map && 
+                item['isChecked'] == true && 
+                item['calories'] != null) {
+              total += int.parse(item['calories'].toString());
+            }
+          }
+        }
+      });
+    }
+    return total;
+  }
+
   Future<void> getPersonalizedFood(String userId) async {
     _isLoading = true;
     notifyListeners();
@@ -39,9 +60,11 @@ class PersonalizedFoodProvider with ChangeNotifier {
   void _calculateTotalCalories() {
     if (_personalizedMenu == null) return;
 
+    final today = DateTime.now().toString().split(' ')[0];
     int total = 0;
     _personalizedMenu!.forEach((day, meals) {
-      if (meals is Map) {
+      // Only count calories for today
+      if (day == today && meals is Map) {
         meals.forEach((mealType, items) {
           if (items is List) {
             for (var item in items) {

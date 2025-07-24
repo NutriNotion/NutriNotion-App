@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nutrinotion_app/backend/providers/auth_provider.dart';
 import 'package:nutrinotion_app/backend/providers/user_provider.dart';
+import '../profile/edit_profile_page_new.dart';
 import 'package:nutrinotion_app/backend/services/mess_service.dart';
 import 'package:nutrinotion_app/const/custom_colors.dart';
 import 'package:nutrinotion_app/const/page_transitions.dart';
@@ -17,6 +18,7 @@ import '../../backend/providers/ai_provider.dart';
 import '../../backend/providers/firestore_provider.dart';
 import '../../backend/providers/personalized_food_provider.dart';
 import '../../backend/services/calorie_tracking_service.dart';
+import '../profile/profile_page_new.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -281,7 +283,7 @@ class _HomePageState extends State<HomePage> {
                         radius: 30,
                         backgroundColor: Colors.white,
                         child: Text(
-                          'A',
+                          authProvider.userDisplayName?.substring(0, 1) ?? 'U',
                           style: GoogleFonts.lato(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -320,7 +322,25 @@ class _HomePageState extends State<HomePage> {
               title: 'Profile',
               onTap: () {
                 Navigator.pop(context);
-                // Navigate to profile page
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProfilePage(),
+                  ),
+                );
+              },
+            ),
+            _buildDrawerItem(
+              icon: Icons.edit,
+              title: 'Edit Profile', 
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const EditProfilePage(),
+                  ),
+                );
               },
             ),
             _buildDrawerItem(
@@ -812,7 +832,8 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildTotalCaloriesSummary() {
     final personalizedFoodProvider = Provider.of<PersonalizedFoodProvider>(context);
-    final totalCalories = personalizedFoodProvider.totalCalories;
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final totalCalories = personalizedFoodProvider.getTotalCaloriesForDate(today);
     const targetCalories = 1400; // This should come from user's profile
     final progress = totalCalories / targetCalories;
     final remainingCalories = targetCalories - totalCalories;
@@ -1394,30 +1415,41 @@ class _HomePageState extends State<HomePage> {
           );
         }
 
-        // Convert raw items to list of strings
-        List<String> itemNames = [];
+        // Handle menu items
+        List<Map<String, dynamic>> menuItems = [];
         if (itemsRaw is List) {
-          itemNames = itemsRaw.cast<String>();
+          menuItems = itemsRaw.map<Map<String, dynamic>>((item) {
+            if (item is Map<String, dynamic>) {
+              return item;
+            } else if (item is String) {
+              return {
+                'item': item,
+                'description': 'Delicious $item prepared fresh',
+                'calories': 200, // Default calories
+                'isVegetarian': !item.toLowerCase().contains('chicken') && 
+                               !item.toLowerCase().contains('fish') && 
+                               !item.toLowerCase().contains('egg') &&
+                               !item.toLowerCase().contains('mutton'),
+                'category': 'Indian',
+              };
+            } else {
+              return {
+                'item': 'Unknown Item',
+                'description': 'Description not available',
+                'calories': 0,
+                'isVegetarian': true,
+                'category': 'Unknown'
+              };
+            }
+          }).toList();
         }
         
         return ListView.builder(
           controller: scrollController,
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          itemCount: itemNames.length,
+          itemCount: menuItems.length,
           itemBuilder: (context, index) {
-            final itemName = itemNames[index];
-            
-            // Create a simple item map from the string name
-            final item = {
-              'item': itemName,
-              'description': 'Delicious $itemName prepared fresh',
-              'calories': 200, // Default calories
-              'isVegetarian': !itemName.toLowerCase().contains('chicken') && 
-                             !itemName.toLowerCase().contains('fish') && 
-                             !itemName.toLowerCase().contains('egg') &&
-                             !itemName.toLowerCase().contains('mutton'),
-              'category': 'Indian',
-            };
+            final item = menuItems[index];
             
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
@@ -1453,7 +1485,7 @@ class _HomePageState extends State<HomePage> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Icon(
-                        _getFoodIcon(item['name'] as String? ?? ''),
+                        _getFoodIcon(item['item'] as String? ?? ''),
                         color: primaryColor,
                         size: 26,
                       ),
@@ -1469,7 +1501,7 @@ class _HomePageState extends State<HomePage> {
                             children: [
                               Expanded(
                                 child: Text(
-                                  item['name'] as String,
+                                  item['name'] as String? ?? 'Unknown Item',
                                   style: GoogleFonts.lato(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -1537,8 +1569,16 @@ class _HomePageState extends State<HomePage> {
                         icon: const Icon(Icons.add,
                             color: Colors.white, size: 20),
                         onPressed: () {
+                          // Ensure all required fields are present
+                          final itemToAdd = {
+                            'item': item['item'] as String? ?? 'Unknown Item',
+                            'calories': item['calories'] as int? ?? 0,
+                            'description': item['description'] as String? ?? 'No description available',
+                            'isVegetarian': item['isVegetarian'] as bool? ?? true,
+                            'category': item['category'] as String? ?? 'Indian',
+                          };
                           Navigator.pop(context);
-                          _addToNutritionTracker(item);
+                          _addToNutritionTracker(itemToAdd);
                         },
                       ),
                     ),

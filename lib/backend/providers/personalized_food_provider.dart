@@ -5,37 +5,31 @@ import 'package:nutrinotion_app/backend/services/calorie_tracking_service.dart';
 class PersonalizedFoodProvider with ChangeNotifier {
 
   final firestoreServices = FirestoreServices();
+  final calorieTrackingService = CalorieTrackingService();
 
   // Getters
   bool _isLoading = false;
   String? _errorMessage;
   Map<String, dynamic>? _personalizedMenu;
   int _totalCalories = 0;
+  bool _isCaloriesFetching = false;
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   Map<String, dynamic>? get personalizedMenu => _personalizedMenu;
   int get totalCalories => _totalCalories;
+  bool get isCaloriesFetching => _isCaloriesFetching;
 
-  int getTotalCaloriesForDate(String date) {
-    if (_personalizedMenu == null || !_personalizedMenu!.containsKey(date)) return 0;
-
-    int total = 0;
-    var meals = _personalizedMenu![date];
-    if (meals is Map) {
-      meals.forEach((mealType, items) {
-        if (items is List) {
-          for (var item in items) {
-            if (item is Map && 
-                item['isChecked'] == true && 
-                item['calories'] != null) {
-              total += int.parse(item['calories'].toString());
-            }
-          }
-        }
-      });
+  Future<int> getTotalCaloriesForDate(String userId, String date) async {
+    try {
+      final totalCalories = await calorieTrackingService.getCheckedCalories(userId, date);
+      _totalCalories = totalCalories;
+      notifyListeners();
+      return totalCalories;
+    } catch (e) {
+      print('Error fetching calories: $e');
+      return 0;
     }
-    return total;
   }
 
   Future<void> getPersonalizedFood(String userId) async {
@@ -44,41 +38,13 @@ class PersonalizedFoodProvider with ChangeNotifier {
     try {
       print("Loading....");
       _personalizedMenu = await firestoreServices.getPersonalizedMenuData(userId);
-      // Calculate initial total calories
-      _calculateTotalCalories();
       print("Personalized Menu: $_personalizedMenu");
-      print("Initial Total Calories: $_totalCalories");
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
       _isLoading = false;
       notifyListeners();
     }
-  }
-
-  // Calculate total calories from checked items
-  void _calculateTotalCalories() {
-    if (_personalizedMenu == null) return;
-
-    final today = DateTime.now().toString().split(' ')[0];
-    int total = 0;
-    _personalizedMenu!.forEach((day, meals) {
-      // Only count calories for today
-      if (day == today && meals is Map) {
-        meals.forEach((mealType, items) {
-          if (items is List) {
-            for (var item in items) {
-              if (item is Map && 
-                  item['isChecked'] == true && 
-                  item['calories'] != null) {
-                total += int.parse(item['calories'].toString());
-              }
-            }
-          }
-        });
-      }
-    });
-    _totalCalories = total;
   }
 
   Future<void> updatePersonalizedFood({
@@ -98,8 +64,6 @@ class PersonalizedFoodProvider with ChangeNotifier {
       // Update local state
       if (_personalizedMenu != null) {
         _personalizedMenu![day][mealType] = updatedItems;
-        // Recalculate total calories after updating items
-        _calculateTotalCalories();
         notifyListeners();
       }
     } catch (e) {
@@ -151,11 +115,9 @@ class PersonalizedFoodProvider with ChangeNotifier {
         
         // Update local state
         _personalizedMenu![day][mealType] = mealItems;
-        _calculateTotalCalories();
         notifyListeners();
 
         // Update calorie tracking
-        final calorieTrackingService = CalorieTrackingService();
         await calorieTrackingService.updateCalorieIntake(
           userId: userId,
           date: day,

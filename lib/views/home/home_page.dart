@@ -31,12 +31,7 @@ class _HomePageState extends State<HomePage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final MessService _messService = MessService();
 
-  // Track completed individual items
-  final Set<String> _completedItems = <String>{};
-  
   // Current day of the week
-  String _currentDay = '';
-
   final currentDay = DateFormat('EEEE').format(DateTime.now());
 
   // Check if it's past meal time
@@ -128,9 +123,6 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    
-    // Initialize current day
-    _currentDay = DateTime.now().toString().split(' ')[0];
     
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -408,6 +400,8 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+
+
   Widget _buildWelcomeSection() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 40, 0, 0),
@@ -443,9 +437,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildMealSection(String mealType, List<Map<String, dynamic>> items) {
-
-    debugPrint(items.toString());
-
     if (items.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -832,11 +823,17 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildTotalCaloriesSummary() {
     final personalizedFoodProvider = Provider.of<PersonalizedFoodProvider>(context);
+    final AuthProvider authProvider = Provider.of<AuthProvider>(context, listen: false);
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final totalCalories = personalizedFoodProvider.getTotalCaloriesForDate(today);
-    const targetCalories = 1400; // This should come from user's profile
-    final progress = totalCalories / targetCalories;
-    final remainingCalories = targetCalories - totalCalories;
+    double progress = 0;
+    int totalCalories = 0;
+    int remainingCalories = 0;
+    const targetCalories = 1400;
+    Future.microtask(() async {
+      totalCalories = await personalizedFoodProvider.getTotalCaloriesForDate(authProvider.userId ?? '', today);
+      progress = totalCalories / targetCalories;
+      remainingCalories = targetCalories - totalCalories;
+    });
     
     // Calculate status color
     Color statusColor;
@@ -1057,55 +1054,66 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _toggleItemCompletion(String itemKey, String itemName, String mealType, int calories) async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final calorieTrackingService = CalorieTrackingService();
+    // Start with updating UI to show loading
     final personalizedFoodProvider = Provider.of<PersonalizedFoodProvider>(context, listen: false);
-    final today = UserModel.formatDate(DateTime.now());
-    final currentDay = DateFormat('EEEE').format(DateTime.now());
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.userId == null) {
+        print('User ID is null');
+        return;
+      }
 
-    // Find and update the item in personalizedMenu
-    if (personalizedFoodProvider.personalizedMenu != null && 
-        personalizedFoodProvider.personalizedMenu![currentDay] != null) {
-      final mealItems = List<Map<String, dynamic>>.from(
-          personalizedFoodProvider.personalizedMenu![currentDay][mealType]);
+      final calorieTrackingService = CalorieTrackingService();
       
-      for (var i = 0; i < mealItems.length; i++) {
-        if (mealItems[i]['item'] == itemName) {
-          final bool currentCheckedState = mealItems[i]['isChecked'] ?? false;
-          mealItems[i]['isChecked'] = !currentCheckedState;
-          
-          // Update the menu in Firestore
-          await personalizedFoodProvider.updatePersonalizedFood(
-            userId: authProvider.userId ?? '',
-            day: currentDay,
-            mealType: mealType,
-            updatedItems: mealItems
-          );
+      // Use consistent date format
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final currentDay = DateFormat('EEEE').format(DateTime.now());
 
-          // Update calories
-          calorieTrackingService.updateCalorieIntake(
-            userId: authProvider.userId ?? '',
-            date: today,
-            calories: calories,
-            isIncrement: !currentCheckedState,
-            itemKey: itemKey,
-            itemName: itemName,
-            mealType: mealType
-          );
-          break;
+      // Find and update the item in personalizedMenu
+      if (personalizedFoodProvider.personalizedMenu != null && 
+          personalizedFoodProvider.personalizedMenu![currentDay] != null) {
+        final mealItems = List<Map<String, dynamic>>.from(
+            personalizedFoodProvider.personalizedMenu![currentDay][mealType]);
+        
+        for (var i = 0; i < mealItems.length; i++) {
+          if (mealItems[i]['item'] == itemName) {
+            final bool currentCheckedState = mealItems[i]['isChecked'] ?? false;
+            mealItems[i]['isChecked'] = !currentCheckedState;
+            
+            // Update menu first, then calories
+            await personalizedFoodProvider.updatePersonalizedFood(
+              userId: authProvider.userId ?? '',
+              day: currentDay,
+              mealType: mealType,
+              updatedItems: mealItems
+            );
+            
+            // Update calories tracking
+            await calorieTrackingService.updateCalorieIntake(
+              userId: authProvider.userId ?? '',
+              date: today,
+              calories: calories,
+              isIncrement: !currentCheckedState,
+              itemKey: itemKey,
+              itemName: itemName,
+              mealType: mealType
+            );
+            
+            // Notify the provider to refresh
+            personalizedFoodProvider.notifyListeners();
+            break;
+          }
         }
       }
+    } on Exception catch (e) {
+      // If any error occurs, revert the UI change
+      print('Error toggling item completion: $e');
     }
 
-    setState(() {
-      if (_completedItems.contains(itemKey)) {
-        _completedItems.remove(itemKey);
-      } else {
-        _completedItems.add(itemKey);
-      }
-    });
-
-    final isNowCompleted = _completedItems.contains(itemKey);
+    // Show success message
+    final currentItem = personalizedFoodProvider.personalizedMenu![currentDay][mealType]
+        .firstWhere((item) => item['item'] == itemName);
+    final isNowCompleted = currentItem['isChecked'] ?? false;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

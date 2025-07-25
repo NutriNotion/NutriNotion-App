@@ -18,8 +18,12 @@ class CalorieTrackingService {
       final userRef = _firestore.collection('users').doc(userId);
       final calorieTrackingRef = userRef.collection('calorie_tracking');
       
+      // Convert date to day name for menu lookup
+      final DateTime dateTime = DateTime.parse(date);
+      final String dayName = _getDayName(dateTime.weekday);
+      
       // First, update the menu item's checked status
-      await _updateMenuItemStatus(userRef, date, mealType, itemName, isIncrement);
+      await _updateMenuItemStatus(userRef, dayName, mealType, itemName, isIncrement);
       
       // Then, update the calorie tracking collection with just the total calories
       final dateDoc = await calorieTrackingRef.doc(date).get();
@@ -46,34 +50,60 @@ class CalorieTrackingService {
     }
   }
   
+  // Helper method to convert weekday number to day name
+  String _getDayName(int weekday) {
+    switch (weekday) {
+      case 1: return 'Monday';
+      case 2: return 'Tuesday';
+      case 3: return 'Wednesday';
+      case 4: return 'Thursday';
+      case 5: return 'Friday';
+      case 6: return 'Saturday';
+      case 7: return 'Sunday';
+      default: return 'Monday';
+    }
+  }
+  
   // Helper method to update the menu item's checked status
   Future<void> _updateMenuItemStatus(
     DocumentReference userRef,
-    String date,
+    String dayName,
     String mealType,
     String itemName,
     bool isChecked
   ) async {
+    print('Updating menu item status: $itemName in $mealType for $dayName to $isChecked');
     final userDoc = await userRef.get();
     if (userDoc.exists) {
       final data = userDoc.data() as Map<String, dynamic>;
       Map<String, dynamic> personalizedMenu = Map<String, dynamic>.from(data['personalizedMenu'] ?? {});
-      Map<String, dynamic> dayMenu = Map<String, dynamic>.from(personalizedMenu[date] ?? {});
+      Map<String, dynamic> dayMenu = Map<String, dynamic>.from(personalizedMenu[dayName] ?? {});
       List<Map<String, dynamic>> mealItems = List<Map<String, dynamic>>.from(dayMenu[mealType] ?? []);
       
+      bool itemFound = false;
       for (int i = 0; i < mealItems.length; i++) {
         if (mealItems[i]['item'] == itemName) {
           Map<String, dynamic> updatedItem = Map<String, dynamic>.from(mealItems[i]);
           updatedItem['isChecked'] = isChecked;
           updatedItem['lastCheckedAt'] = DateTime.now().toIso8601String();
           mealItems[i] = updatedItem;
+          itemFound = true;
+          print('Item found and updated: ${updatedItem}');
           break;
         }
       }
       
+      if (!itemFound) {
+        print('Warning: Item $itemName not found in $mealType for $dayName');
+        print('Available items: ${mealItems.map((item) => item['item']).toList()}');
+      }
+      
       dayMenu[mealType] = mealItems;
-      personalizedMenu[date] = dayMenu;
+      personalizedMenu[dayName] = dayMenu;
       await userRef.update({'personalizedMenu': personalizedMenu});
+      print('Database updated successfully');
+    } else {
+      print('Error: User document does not exist');
     }
   }
 

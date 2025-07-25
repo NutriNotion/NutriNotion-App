@@ -34,11 +34,11 @@ class AIService {
 
   // Call the api to generate personalized recommendations
   Future<Map<String, dynamic>> generateRecommendations(Map<String, dynamic> data) async {
+    print("Generating recommendations with data");
     try {
-      // final url = 'https://ai-model-jvog.onrender.com/api/recommend_weekly_meal';
-      final url = 'http://192.168.44.73:5000/api/recommend_weekly_meal';
+      final url = Uri.parse("http://192.168.44.73:5000/api/recommend_weekly_meal");
       final response = await http.post(
-        Uri.parse(url),
+        url,
         headers: {
           'Content-Type': 'application/json',
         },

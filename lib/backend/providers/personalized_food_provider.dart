@@ -10,7 +10,7 @@ class PersonalizedFoodProvider with ChangeNotifier {
   // Getters
   bool _isLoading = false;
   String? _errorMessage;
-  Map<String, dynamic>? _personalizedMenu;
+  Map<String, dynamic>? _personalizedMenu = null;
   int _totalCalories = 0;
   bool _isCaloriesFetching = false;
 
@@ -36,9 +36,7 @@ class PersonalizedFoodProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      print("Loading....");
       _personalizedMenu = await firestoreServices.getPersonalizedMenuData(userId);
-      print("Personalized Menu: $_personalizedMenu");
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -93,16 +91,21 @@ class PersonalizedFoodProvider with ChangeNotifier {
       List<Map<String, dynamic>> mealItems = List<Map<String, dynamic>>.from(_personalizedMenu![day][mealType]);
       
       // Keep the original structure but add required fields
-      newItem['isChecked'] = true;
+      newItem['isChecked'] = false;
       newItem['lastCheckedAt'] = DateTime.now().toIso8601String();
       if (!newItem.containsKey('quantity')) {
         newItem['quantity'] = '1 serving';
       }
+
+      print("New Item to add: $newItem");
       
       // Check if item already exists
       bool itemExists = mealItems.any((item) => item['item'] == newItem['item']);
       if (!itemExists) {
         // Add the new item
+
+        print("Item does not exist, adding");
+
         mealItems.add(newItem);
         
         // Update the menu
@@ -117,16 +120,7 @@ class PersonalizedFoodProvider with ChangeNotifier {
         _personalizedMenu![day][mealType] = mealItems;
         notifyListeners();
 
-        // Update calorie tracking
-        await calorieTrackingService.updateCalorieIntake(
-          userId: userId,
-          date: day,
-          calories: int.parse(newItem['calories'].toString()),
-          isIncrement: true,
-          itemKey: '${mealType.toLowerCase()}_${newItem['item']}',
-          itemName: newItem['item'],
-          mealType: mealType
-        );
+        // Note: No calorie tracking update here since items start as unchecked
       }
     } catch (e) {
       _errorMessage = e.toString();

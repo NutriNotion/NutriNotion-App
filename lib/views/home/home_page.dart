@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:nutrinotion_app/backend/models/user_model.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nutrinotion_app/backend/providers/auth_provider.dart';
@@ -13,12 +12,12 @@ import 'package:nutrinotion_app/backend/services/mess_service.dart';
 import 'package:nutrinotion_app/const/custom_colors.dart';
 import 'package:nutrinotion_app/const/page_transitions.dart';
 import 'package:nutrinotion_app/views/auth/login_page.dart';
-
 import '../../backend/providers/ai_provider.dart';
 import '../../backend/providers/firestore_provider.dart';
 import '../../backend/providers/personalized_food_provider.dart';
 import '../../backend/services/calorie_tracking_service.dart';
 import '../profile/profile_page_new.dart';
+import '../analytics/analytics_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -30,6 +29,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final MessService _messService = MessService();
+
+  // Loading states for individual items
+  final Map<String, bool> _itemLoadingStates = {};
 
   // Current day of the week
   final currentDay = DateFormat('EEEE').format(DateTime.now());
@@ -48,21 +50,6 @@ class _HomePageState extends State<HomePage> {
         return now >= 22; // After 10 PM
       default:
         return false;
-    }
-  }
-
-  // Determine which meal type based on current time
-  String _determineMealType(DateTime time) {
-    final hour = time.hour;
-    
-    if (hour >= 6 && hour < 11) {
-      return 'Breakfast';
-    } else if (hour >= 11 && hour < 15) {
-      return 'Lunch';
-    } else if (hour >= 15 && hour < 19) {
-      return 'Snacks';
-    } else {
-      return 'Dinner';
     }
   }
 
@@ -123,27 +110,45 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final aiProvider = Provider.of<AiProvider>(context, listen: false);
-      final firestoreProvider = Provider.of<FirestoreProvider>(context, listen: false);
-      final personalizedFoodProvider = Provider.of<PersonalizedFoodProvider>(context, listen: false);
-      
-      // Get personalized food data
-      await personalizedFoodProvider.getPersonalizedFood(authProvider.userId ?? '');
-      
+      final firestoreProvider =
+          Provider.of<FirestoreProvider>(context, listen: false);
+      final personalizedFoodProvider =
+          Provider.of<PersonalizedFoodProvider>(context, listen: false);
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+      // Load user data including calorie target
+      if (authProvider.userId != null) {
+        await userProvider.loadFromFirestore(authProvider.userId!);
+      }
+
+      // Get personalized food data and calories
+      await personalizedFoodProvider
+          .getPersonalizedFood(authProvider.userId ?? '');
+
+      // Fetch today's calories
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      await personalizedFoodProvider.getTotalCaloriesForDate(
+          authProvider.userId ?? '', today);
+
       final res = await aiProvider.getUserDetails(authProvider.userId ?? '');
       final menu = await aiProvider.getMenuDetails();
 
       if (res != null && menu.isNotEmpty && authProvider.userId != null) {
-        final check = await firestoreProvider.checkForPersonalizedFood(authProvider.userId ?? '');
+        final check = await firestoreProvider
+            .checkForPersonalizedFood(authProvider.userId ?? '');
+        print("Check for personalized food: $check");
         if (check == false) {
           return;
         }
         final aiData = aiProvider.formatDataForAI(res, menu);
+        print("AI Data: $aiData");
         final recommendations =
             await aiProvider.generateRecommendations(aiData);
+        print("Recommendations: $recommendations");
         await firestoreProvider.updatePersonalizedMenu(
             authProvider.userId ?? '', recommendations);
       } else {
@@ -154,7 +159,8 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final personalizedFoodProvider = Provider.of<PersonalizedFoodProvider>(context);
+    final personalizedFoodProvider =
+        Provider.of<PersonalizedFoodProvider>(context);
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: const Color.fromARGB(255, 255, 251, 247),
@@ -177,6 +183,16 @@ class _HomePageState extends State<HomePage> {
 
                   const SizedBox(height: 20),
 
+                  // Health Tip
+                  _buildHealthTip(),
+
+                  SizedBox(height: 20),
+
+                  // Quick Analytics Access
+                  _buildQuickAnalyticsCard(),
+
+                  SizedBox(height: 20),
+
                   // View Full Menu Button (moved to top)
                   _buildViewFullMenuButton(),
 
@@ -192,50 +208,67 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
+
                   personalizedFoodProvider.isLoading
-                  ? Center(child: CircularProgressIndicator(
-                      color: primaryColor,
-                      strokeWidth: 2.5,
-                  ))
-                  : personalizedFoodProvider.errorMessage != null
-                      ? Center(child: Text(personalizedFoodProvider.errorMessage!))
-                  : personalizedFoodProvider.personalizedMenu != null
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (personalizedFoodProvider.personalizedMenu![currentDay]?['Breakfast'] != null)
-                              _buildMealSection(
-                                  'Breakfast',
-                                  List<Map<String, dynamic>>.from(
-                                      personalizedFoodProvider.personalizedMenu![currentDay]['Breakfast'])),
-                            const SizedBox(height: 20),
-                            if (personalizedFoodProvider.personalizedMenu![currentDay]?['Lunch'] != null)
-                              _buildMealSection(
-                                  'Lunch',
-                                  List<Map<String, dynamic>>.from(
-                                      personalizedFoodProvider.personalizedMenu![currentDay]['Lunch'])),
-                            const SizedBox(height: 20),
-                            if (personalizedFoodProvider.personalizedMenu![currentDay]?['Snacks'] != null)
-                              _buildMealSection(
-                                  'Snacks',
-                                  List<Map<String, dynamic>>.from(
-                                      personalizedFoodProvider.personalizedMenu![currentDay]['Snacks'])),
-                            const SizedBox(height: 20),
-                            if (personalizedFoodProvider.personalizedMenu![currentDay]?['Dinner'] != null)
-                              _buildMealSection(
-                                  'Dinner',
-                                  List<Map<String, dynamic>>.from(
-                                      personalizedFoodProvider.personalizedMenu![currentDay]['Dinner'])),
-                          ],
-                        )
-                      : Center(child: Text('No personalized menu available.')),
-
-                  const SizedBox(height: 24),
-
-                  // Health Tip
-                  _buildHealthTip(),
-
+                      ? Center(
+                          child: CircularProgressIndicator(
+                          color: primaryColor,
+                          strokeWidth: 2.5,
+                        ))
+                      : personalizedFoodProvider.errorMessage != null
+                          ? Center(
+                              child:
+                                  Text(personalizedFoodProvider.errorMessage!))
+                          : personalizedFoodProvider.personalizedMenu != null
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (personalizedFoodProvider
+                                                .personalizedMenu![currentDay]
+                                            ?['Breakfast'] !=
+                                        null)
+                                      _buildMealSection(
+                                          'Breakfast',
+                                          List<Map<String, dynamic>>.from(
+                                              personalizedFoodProvider
+                                                      .personalizedMenu![
+                                                  currentDay]['Breakfast'])),
+                                    const SizedBox(height: 20),
+                                    if (personalizedFoodProvider
+                                                .personalizedMenu![currentDay]
+                                            ?['Lunch'] !=
+                                        null)
+                                      _buildMealSection(
+                                          'Lunch',
+                                          List<Map<String, dynamic>>.from(
+                                              personalizedFoodProvider
+                                                      .personalizedMenu![
+                                                  currentDay]['Lunch'])),
+                                    const SizedBox(height: 20),
+                                    if (personalizedFoodProvider
+                                                .personalizedMenu![currentDay]
+                                            ?['Snacks'] !=
+                                        null)
+                                      _buildMealSection(
+                                          'Snacks',
+                                          List<Map<String, dynamic>>.from(
+                                              personalizedFoodProvider
+                                                      .personalizedMenu![
+                                                  currentDay]['Snacks'])),
+                                    const SizedBox(height: 20),
+                                    if (personalizedFoodProvider
+                                                .personalizedMenu![currentDay]
+                                            ?['Dinner'] !=
+                                        null)
+                                      _buildMealSection(
+                                          'Dinner',
+                                          List<Map<String, dynamic>>.from(
+                                              personalizedFoodProvider
+                                                      .personalizedMenu![
+                                                  currentDay]['Dinner'])),
+                                  ],
+                                )
+                              : _buildPersonalizedMenuCookingMessage(),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -323,51 +356,19 @@ class _HomePageState extends State<HomePage> {
               },
             ),
             _buildDrawerItem(
-              icon: Icons.edit,
-              title: 'Edit Profile', 
+              icon: Icons.analytics,
+              title: 'Analytics',
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const EditProfilePage(),
+                    builder: (context) => const AnalyticsPage(),
                   ),
                 );
               },
             ),
-            _buildDrawerItem(
-              icon: Icons.restaurant_menu,
-              title: 'Nutrition Tracker',
-              onTap: () {
-                Navigator.pop(context);
-                // Navigate to nutrition tracker
-              },
-            ),
-            _buildDrawerItem(
-              icon: Icons.analytics,
-              title: 'Analytics',
-              onTap: () {
-                Navigator.pop(context);
-                // Navigate to analytics
-              },
-            ),
-            _buildDrawerItem(
-              icon: Icons.settings,
-              title: 'Settings',
-              onTap: () {
-                Navigator.pop(context);
-                // Navigate to settings
-              },
-            ),
             const Divider(color: Colors.white30),
-            _buildDrawerItem(
-              icon: Icons.help_outline,
-              title: 'Help & Support',
-              onTap: () {
-                Navigator.pop(context);
-                // Navigate to help
-              },
-            ),
             _buildDrawerItem(
               icon: Icons.logout,
               title: 'Logout',
@@ -400,8 +401,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
-
   Widget _buildWelcomeSection() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 40, 0, 0),
@@ -414,7 +413,7 @@ class _HomePageState extends State<HomePage> {
           // Top header with menu and app title
           Row(
             mainAxisAlignment: MainAxisAlignment.start,
-            spacing: 16,
+            spacing: 6,
             children: [
               IconButton(
                 icon: const Icon(Icons.menu,
@@ -423,10 +422,10 @@ class _HomePageState extends State<HomePage> {
               ),
               Text(
                 'NutriNotion',
-                style: GoogleFonts.lato(
+                style: GoogleFonts.poppins(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
-                  color: const Color.fromARGB(255, 31, 31, 31),
+                  color: const Color.fromARGB(255, 54, 54, 54),
                 ),
               ),
             ],
@@ -472,9 +471,9 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
-    
-    int totalCalories =
-        items.fold(0, (sum, item) => sum + (int.tryParse(item['calories'].toString()) ?? 0));
+
+    int totalCalories = items.fold(0,
+        (sum, item) => sum + (int.tryParse(item['calories'].toString()) ?? 0));
     bool isTimePassed = _isMealTimePassed(mealType);
     bool isFutureMeal = _isFutureMeal(mealType);
 
@@ -482,9 +481,8 @@ class _HomePageState extends State<HomePage> {
     bool allItemsCompleted = items.every((item) => item['isChecked'] == true);
 
     // Get count of completed items
-    int completedCount = items
-        .where((item) => item['isChecked'] == true)
-        .length;
+    int completedCount =
+        items.where((item) => item['isChecked'] == true).length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -572,7 +570,8 @@ class _HomePageState extends State<HomePage> {
         ...items.asMap().entries.map((entry) {
           final item = entry.value;
           final itemKey = '${mealType.toLowerCase()}_${item['item']}';
-          final isItemCompleted = item['isChecked'] ?? false; // Get checked status from item data
+          final isItemCompleted =
+              item['isChecked'] ?? false; // Get checked status from item data
           final shouldBeGrayedOut = isItemCompleted || isTimePassed;
           final canToggle = !isFutureMeal; // Disable toggle for future meals
 
@@ -691,11 +690,10 @@ class _HomePageState extends State<HomePage> {
                         ? 'Mark as incomplete'
                         : 'Mark as completed',
                     child: GestureDetector(
-                      onTap: () => _toggleItemCompletion(
-                          itemKey, 
-                          item['item'], 
-                          mealType,
-                          int.parse(item['calories'].toString())),
+                      onTap: _itemLoadingStates[itemKey] == true
+                          ? null
+                          : () => _toggleItemCompletion(itemKey, item['item'],
+                              mealType, int.parse(item['calories'].toString())),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.all(8),
@@ -721,18 +719,32 @@ class _HomePageState extends State<HomePage> {
                         ),
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 200),
-                          child: Icon(
-                            isItemCompleted ? Icons.close : Icons.check,
-                            key: ValueKey(isItemCompleted),
-                            color: isTimePassed
-                                ? (isItemCompleted
-                                    ? Colors.grey[600]
-                                    : Colors.grey[500])
-                                : (isItemCompleted
-                                    ? Colors.orange
-                                    : Colors.green),
-                            size: 20,
-                          ),
+                          child: _itemLoadingStates[itemKey] == true
+                              ? SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    key: ValueKey('loading_$itemKey'),
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      isTimePassed
+                                          ? Colors.grey[500]!
+                                          : primaryColor,
+                                    ),
+                                  ),
+                                )
+                              : Icon(
+                                  isItemCompleted ? Icons.close : Icons.check,
+                                  key: ValueKey(isItemCompleted),
+                                  color: isTimePassed
+                                      ? (isItemCompleted
+                                          ? Colors.grey[600]
+                                          : Colors.grey[500])
+                                      : (isItemCompleted
+                                          ? Colors.orange
+                                          : Colors.green),
+                                  size: 20,
+                                ),
                         ),
                       ),
                     ),
@@ -822,19 +834,15 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildTotalCaloriesSummary() {
-    final personalizedFoodProvider = Provider.of<PersonalizedFoodProvider>(context);
-    final AuthProvider authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    double progress = 0;
-    int totalCalories = 0;
-    int remainingCalories = 0;
-    const targetCalories = 1400;
-    Future.microtask(() async {
-      totalCalories = await personalizedFoodProvider.getTotalCaloriesForDate(authProvider.userId ?? '', today);
-      progress = totalCalories / targetCalories;
-      remainingCalories = targetCalories - totalCalories;
-    });
-    
+    final personalizedFoodProvider =
+        Provider.of<PersonalizedFoodProvider>(context);
+    final userProvider = Provider.of<UserProvider>(context);
+    final totalCalories = personalizedFoodProvider.totalCalories;
+    final targetCalories = userProvider.user.calorieTargetPerDay ??
+        1400; // Default to 1400 if not set
+    final progress = totalCalories / targetCalories;
+    final remainingCalories = targetCalories - totalCalories;
+
     // Calculate status color
     Color statusColor;
     String statusText;
@@ -863,7 +871,7 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withOpacity(0.3),
+            color: primaryColor.withOpacity(0.2),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -898,7 +906,8 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: statusColor.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
@@ -965,36 +974,47 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
           const SizedBox(height: 20),
-          Container(
-            height: 10,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: progress > 1.0 ? 1.0 : progress,
-              child: Container(
+          Stack(
+            children: [
+              // Background progress bar
+              Container(
+                height: 10,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      statusColor,
-                      statusColor.withOpacity(0.8),
-                    ],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  ),
+                  color: Colors.white.withOpacity(0.25),
                   borderRadius: BorderRadius.circular(5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: statusColor.withOpacity(0.5),
-                      blurRadius: 6,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 0.5,
+                  ),
                 ),
               ),
-            ),
+              // Foreground progress bar
+              FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: progress > 1.0 ? 1.0 : progress,
+                child: Container(
+                  height: 10,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        statusColor,
+                        statusColor.withOpacity(0.8),
+                      ],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                    borderRadius: BorderRadius.circular(5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: statusColor.withOpacity(0.4),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Text(
@@ -1053,124 +1073,142 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _toggleItemCompletion(String itemKey, String itemName, String mealType, int calories) async {
-    // Start with updating UI to show loading
-    final personalizedFoodProvider = Provider.of<PersonalizedFoodProvider>(context, listen: false);
-    try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      if (authProvider.userId == null) {
-        print('User ID is null');
-        return;
-      }
+  void _toggleItemCompletion(
+      String itemKey, String itemName, String mealType, int calories) async {
+    final personalizedFoodProvider =
+        Provider.of<PersonalizedFoodProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
+    if (authProvider.userId == null) {
+      print('User ID is null');
+      return;
+    }
+
+    // Set loading state for this specific item
+    setState(() {
+      _itemLoadingStates[itemKey] = true;
+    });
+
+    try {
       final calorieTrackingService = CalorieTrackingService();
-      
-      // Use consistent date format
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
       final currentDay = DateFormat('EEEE').format(DateTime.now());
 
-      // Find and update the item in personalizedMenu
-      if (personalizedFoodProvider.personalizedMenu != null && 
+      print('Toggling item: $itemName in $mealType for day: $currentDay (date: $today)');
+
+      if (personalizedFoodProvider.personalizedMenu != null &&
           personalizedFoodProvider.personalizedMenu![currentDay] != null) {
         final mealItems = List<Map<String, dynamic>>.from(
             personalizedFoodProvider.personalizedMenu![currentDay][mealType]);
-        
-        for (var i = 0; i < mealItems.length; i++) {
-          if (mealItems[i]['item'] == itemName) {
-            final bool currentCheckedState = mealItems[i]['isChecked'] ?? false;
-            mealItems[i]['isChecked'] = !currentCheckedState;
-            
-            // Update menu first, then calories
-            await personalizedFoodProvider.updatePersonalizedFood(
-              userId: authProvider.userId ?? '',
-              day: currentDay,
-              mealType: mealType,
-              updatedItems: mealItems
-            );
-            
-            // Update calories tracking
-            await calorieTrackingService.updateCalorieIntake(
-              userId: authProvider.userId ?? '',
-              date: today,
-              calories: calories,
-              isIncrement: !currentCheckedState,
-              itemKey: itemKey,
-              itemName: itemName,
-              mealType: mealType
-            );
-            
-            // Notify the provider to refresh
-            personalizedFoodProvider.notifyListeners();
-            break;
-          }
-        }
-      }
-    } on Exception catch (e) {
-      // If any error occurs, revert the UI change
-      print('Error toggling item completion: $e');
-    }
 
-    // Show success message
-    final currentItem = personalizedFoodProvider.personalizedMenu![currentDay][mealType]
-        .firstWhere((item) => item['item'] == itemName);
-    final isNowCompleted = currentItem['isChecked'] ?? false;
+        // Find the item and toggle its checked state
+        final targetItemIndex =
+            mealItems.indexWhere((item) => item['item'] == itemName);
+        if (targetItemIndex != -1) {
+          final bool currentCheckedState =
+              mealItems[targetItemIndex]['isChecked'] ?? false;
+          final bool newCheckedState = !currentCheckedState;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              isNowCompleted ? Icons.check_circle : Icons.remove_circle,
-              color: Colors.white,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                isNowCompleted
-                    ? '$itemName from $mealType marked as completed!'
-                    : '$itemName from $mealType marked as incomplete!',
-                style: const TextStyle(color: Colors.white),
+          print('Current state: $currentCheckedState, New state: $newCheckedState');
+
+          // Update the item state locally first for immediate UI feedback
+          mealItems[targetItemIndex]['isChecked'] = newCheckedState;
+
+          // Update both services in parallel
+          await Future.wait([
+            personalizedFoodProvider.updatePersonalizedFood(
+                userId: authProvider.userId!,
+                day: currentDay,
+                mealType: mealType,
+                updatedItems: mealItems),
+            calorieTrackingService.updateCalorieIntake(
+                userId: authProvider.userId!,
+                date: today,
+                calories: calories,
+                isIncrement: newCheckedState,
+                itemKey: itemKey,
+                itemName: itemName,
+                mealType: mealType),
+          ]);
+
+          // Refresh calorie count after successful update
+          await personalizedFoodProvider.getTotalCaloriesForDate(
+              authProvider.userId!, today);
+
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(
+                    newCheckedState ? Icons.check_circle : Icons.remove_circle,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      newCheckedState
+                          ? '$itemName from $mealType marked as completed!'
+                          : '$itemName from $mealType marked as incomplete!',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: newCheckedState ? Colors.green : Colors.orange,
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
-          ],
+          );
+        }
+      }
+    } catch (e) {
+      print('Error toggling item completion: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update item: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
         ),
-        backgroundColor: isNowCompleted ? Colors.green : Colors.orange,
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-    );
+      );
+    } finally {
+      // Clear loading state for this item
+      setState(() {
+        _itemLoadingStates[itemKey] = false;
+      });
+    }
   }
 
   Widget _buildHealthTip() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            const Color(0xFFF8F9FA),
-            const Color(0xFFF1F3F4),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.grey[50],
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 50,
+            height: 50,
             decoration: BoxDecoration(
               color: primaryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              Icons.tips_and_updates,
+              Icons.lightbulb_outline,
               color: primaryColor,
               size: 24,
             ),
@@ -1181,20 +1219,221 @@ class _HomePageState extends State<HomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Health Tip of the Day',
+                  'Health Tip',
                   style: GoogleFonts.lato(
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
-                  'Drink at least 2 liters of water daily to support your fitness goals and maintain good health.',
+                  'Stay hydrated! Drink 8-10 glasses of water daily to boost metabolism and aid digestion.',
                   style: GoogleFonts.lato(
-                    fontSize: 12,
+                    fontSize: 13,
                     color: Colors.grey[600],
                     height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickAnalyticsCard() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AnalyticsPage(),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.analytics_outlined,
+                color: primaryColor,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'View Analytics',
+                    style: GoogleFonts.lato(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Track your daily progress and streaks',
+                    style: GoogleFonts.lato(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.grey[400],
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPersonalizedMenuCookingMessage() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.symmetric(vertical: 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            primaryColor.withOpacity(0.05),
+            primaryColor.withOpacity(0.02),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: primaryColor.withOpacity(0.1),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          // Animated cooking icon
+          Container(
+            height: 80,
+            width: 80,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle
+            ),
+            child: Text(
+              '',
+              style: TextStyle(fontSize: 50),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Main message
+          Text(
+            '🍳 Your Personalized Meal is Being Cooked!',
+            style: GoogleFonts.lato(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 12),
+
+          // Subtitle
+          Text(
+            'Our nutrition experts are preparing a customized meal plan just for you based on your preferences and goals.',
+            style: GoogleFonts.lato(
+              fontSize: 14,
+              color: Colors.grey[600],
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 24),
+
+          // Progress indicator
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ...List.generate(3, (index) {
+                return TweenAnimationBuilder(
+                  duration: Duration(milliseconds: 600 + (index * 200)),
+                  tween: Tween<double>(begin: 0.3, end: 1.0),
+                  builder: (context, double value, child) {
+                    return AnimatedContainer(
+                      duration: Duration(milliseconds: 300),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(value),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    );
+                  },
+                );
+              }),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Action hint
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.blue.withOpacity(0.1),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: Colors.blue[600],
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'This usually takes a few moments',
+                  style: GoogleFonts.lato(
+                    fontSize: 12,
+                    color: Colors.blue[600],
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -1374,8 +1613,7 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
-                    // Instead of setState, we'll just call the stream again
-                    _messService.getMenuStream("wednesday");
+                    _messService.getMenuStream(currentDay);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
@@ -1434,10 +1672,10 @@ class _HomePageState extends State<HomePage> {
                 'item': item,
                 'description': 'Delicious $item prepared fresh',
                 'calories': 200, // Default calories
-                'isVegetarian': !item.toLowerCase().contains('chicken') && 
-                               !item.toLowerCase().contains('fish') && 
-                               !item.toLowerCase().contains('egg') &&
-                               !item.toLowerCase().contains('mutton'),
+                'isVegetarian': !item.toLowerCase().contains('chicken') &&
+                    !item.toLowerCase().contains('fish') &&
+                    !item.toLowerCase().contains('egg') &&
+                    !item.toLowerCase().contains('mutton'),
                 'category': 'Indian',
               };
             } else {
@@ -1451,14 +1689,14 @@ class _HomePageState extends State<HomePage> {
             }
           }).toList();
         }
-        
+
         return ListView.builder(
           controller: scrollController,
           padding: const EdgeInsets.symmetric(horizontal: 20),
           itemCount: menuItems.length,
           itemBuilder: (context, index) {
             final item = menuItems[index];
-            
+
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
@@ -1493,7 +1731,7 @@ class _HomePageState extends State<HomePage> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Icon(
-                        _getFoodIcon(item['item'] as String? ?? ''),
+                        _getFoodIcon(item['name'] as String? ?? ''),
                         color: primaryColor,
                         size: 26,
                       ),
@@ -1577,15 +1815,14 @@ class _HomePageState extends State<HomePage> {
                         icon: const Icon(Icons.add,
                             color: Colors.white, size: 20),
                         onPressed: () {
-                          // Ensure all required fields are present
                           final itemToAdd = {
-                            'item': item['item'] as String? ?? 'Unknown Item',
+                            'item': item['name'] as String? ?? 'Unknown Item',
                             'calories': item['calories'] as int? ?? 0,
-                            'description': item['description'] as String? ?? 'No description available',
-                            'isVegetarian': item['isVegetarian'] as bool? ?? true,
-                            'category': item['category'] as String? ?? 'Indian',
+                            'description': item['description'] as String? ??
+                                'No description available',
                           };
                           Navigator.pop(context);
+                          print(itemToAdd);
                           _addToNutritionTracker(itemToAdd);
                         },
                       ),
@@ -1602,28 +1839,87 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _addToNutritionTracker(Map<String, dynamic> item) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final personalizedFoodProvider = Provider.of<PersonalizedFoodProvider>(context, listen: false);
-    
+    final personalizedFoodProvider =
+        Provider.of<PersonalizedFoodProvider>(context, listen: false);
+
+    // Show dialog to let user choose meal type
+    final String? selectedMealType = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            'Add to Meal Plan',
+            style: GoogleFonts.lato(fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Select which meal you want to add "${item['item']}" to:',
+                style: GoogleFonts.lato(),
+              ),
+              const SizedBox(height: 16),
+              ...['Breakfast', 'Lunch', 'Snacks', 'Dinner'].map((mealType) {
+                return Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(mealType),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: primaryColor,
+                      side: BorderSide(color: primaryColor),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        mealType,
+                        style: GoogleFonts.lato(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.lato(color: Colors.grey),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (selectedMealType == null) return; // User cancelled
+
     try {
-      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      final mealType = _determineMealType(DateTime.now());
+      final currentDay = DateFormat('EEEE').format(DateTime.now()); // Use day name like 'Friday'
 
       await personalizedFoodProvider.addToPersonalizedMenu(
         userId: authProvider.userId!,
-        day: today,
-        mealType: mealType,
+        day: currentDay,
+        mealType: selectedMealType,
         newItem: {
           'item': item['item'],
           'calories': item['calories'],
           'quantity': '1 serving',
           'description': item['description'],
-          'isVegetarian': item['isVegetarian'],
         },
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${item['item']} added to your personalized menu!'),
+          content: Text('${item['item']} added to your $selectedMealType!'),
           backgroundColor: primaryColor,
           duration: const Duration(seconds: 2),
         ),

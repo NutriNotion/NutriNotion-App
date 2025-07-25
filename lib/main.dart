@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nutrinotion_app/backend/providers/personalized_food_provider.dart';
 import 'package:nutrinotion_app/views/onboarding/diet_preferences_page.dart';
+import 'package:nutrinotion_app/views/onboarding/generating_personalized_food.dart';
 import 'package:nutrinotion_app/views/onboarding/height_weight_page.dart';
 import 'package:nutrinotion_app/views/onboarding/splashscreen.dart';
 import 'package:provider/provider.dart';
@@ -58,7 +59,7 @@ class MyApp extends StatelessWidget {
           fontFamily: 'Roboto',
           visualDensity: VisualDensity.adaptivePlatformDensity,
         ),
-        home: const SplashScreen(),
+        home: const GeneratingPersonalizedFood(),
         onGenerateRoute: (settings) {
           switch (settings.name) {
             case '/login':
@@ -73,6 +74,8 @@ class MyApp extends StatelessWidget {
               return FadePageRoute(child: const HeightWeightPage(), durationMs: 500);
             case '/lifestyle-goal':
               return FadePageRoute(child: const LifestyleGoalPage(), durationMs: 500);
+            case 'generating-personalized-menu' :
+              return FadePageRoute(child: const GeneratingPersonalizedFood(), durationMs: 500);
             default:
               return FadePageRoute(child: const LandingPage(), durationMs: 300);
           }

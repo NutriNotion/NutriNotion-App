@@ -65,6 +65,10 @@ class FirestoreServices {
 
   // Update Personalized menu
   Future<void> updatePersonalizedMenu(String userId, Map<String, dynamic> menuData) async {
+    if(menuData.isEmpty) {
+      return;
+    }
+    
     try {
       menuData['lastGeneratedDate'] = DateTime.now();
       await _firestore.collection('users').doc(userId).update({'personalizedMenu': menuData});
@@ -145,7 +149,7 @@ class FirestoreServices {
 
 
   // Get Personalized Menu Data
-  Future<Map<String, dynamic>> getPersonalizedMenuData(String userId) async {
+  Future<Map<String, dynamic>?> getPersonalizedMenuData(String userId) async {
     try {
       final doc = await _firestore.collection('users').doc(userId).get();
       if (doc.exists && doc.data() != null) {
@@ -154,7 +158,7 @@ class FirestoreServices {
           return data['personalizedMenu'] as Map<String, dynamic>;
         }
       }
-      return {};
+      return null;
     } catch (e) {
       throw Exception('Failed to fetch personalized menu data: $e');
     }

@@ -623,7 +623,7 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
     );
 
     // Update user model with calorie target
-    userProvider.updateCalorieTarget (calorieTarget.toInt());
+    userProvider.updateCalorieTarget(calorieTarget.toInt());
 
     try {
       // Save to Firestore and mark profile as complete
@@ -640,7 +640,7 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
         );
 
         // Navigate to home page
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, '/generating-personalized-menu');
       } else {
         // Show error message
         ScaffoldMessenger.of(context).showSnackBar(

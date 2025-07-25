@@ -107,83 +107,108 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color.fromARGB(255, 255, 251, 247),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          color: primaryColor,
+          icon: Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
+        title: Text(
+          'Edit Profile',
+          style: GoogleFonts.lato(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        centerTitle: true,
       ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Section with gradient background
+            // Header Card
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    primaryColor.withOpacity(0.1),
-                    Colors.white,
-                  ],
-                ),
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(30),
-                  bottomRight: Radius.circular(30),
-                ),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  RichText(
-                    text: TextSpan(
-                      text: 'Edit',
-                      style: GoogleFonts.lato(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                      children: [
-                        TextSpan(
-                          text: '\nYour Profile',
-                          style: GoogleFonts.lato(
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                            color: primaryColor,
-                          ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    "Update your information to get personalized recommendations",
-                    style: GoogleFonts.lato(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
+                        child: Icon(
+                          Icons.edit_outlined,
+                          color: primaryColor,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Update Your Profile',
+                              style: GoogleFonts.lato(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Keep your information up to date for better recommendations',
+                              style: GoogleFonts.lato(
+                                fontSize: 13,
+                                color: Colors.grey[600],
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
             
-            // Form Section with card style
+            const SizedBox(height: 20),
+            
+            // Form Section
             Container(
-              margin: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
@@ -195,7 +220,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildSectionTitle('Personal Information'),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
                       _buildTextField(
                         controller: _nameController,
                         label: 'Full Name',
@@ -224,7 +249,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
                       const SizedBox(height: 24),
                       _buildSectionTitle('Physical Details'),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
                       _buildTextField(
                         controller: _heightController,
                         label: 'Height (cm)',
@@ -258,7 +283,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
                       const SizedBox(height: 24),
                       _buildSectionTitle('Preferences'),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
                       _buildDropdown(
                         value: _selectedGender,
                         label: 'Gender',
@@ -302,36 +327,24 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           }
                         },
                       ),
-                      const SizedBox(height: 40),
-                      // Save Button with gradient
+                      const SizedBox(height: 32),
+                      // Save Button
                       Container(
                         width: double.infinity,
+                        height: 56,
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              primaryColor,
-                              primaryColor.withOpacity(0.8),
-                            ],
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                          ),
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primaryColor.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
+                          border: Border.all(color: primaryColor, width: 2),
                         ),
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _updateProfile,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
+                            backgroundColor: primaryColor,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
                             shadowColor: Colors.transparent,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(14),
                             ),
                           ),
                           child: _isLoading
@@ -343,13 +356,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                     strokeWidth: 2,
                                   ),
                                 )
-                              : Text(
-                                  'Save Changes',
-                                  style: GoogleFonts.lato(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                  ),
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.save_outlined,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Save Changes',
+                                      style: GoogleFonts.lato(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                         ),
                       ),
@@ -366,46 +389,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Widget _buildSectionTitle(String title) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16, top: 8),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              _getSectionIcon(title),
-              color: primaryColor,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            title,
-            style: GoogleFonts.lato(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-        ],
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        title,
+        style: GoogleFonts.lato(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Colors.black87,
+        ),
       ),
     );
-  }
-
-  IconData _getSectionIcon(String title) {
-    switch (title) {
-      case 'Personal Information':
-        return Icons.person_outline;
-      case 'Physical Details':
-        return Icons.height;
-      case 'Preferences':
-        return Icons.settings_suggest;
-      default:
-        return Icons.info_outline;
-    }
   }
 
   Widget _buildTextField({
@@ -443,7 +436,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
         filled: true,
         fillColor: Colors.grey[50],
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     );
   }
@@ -479,7 +472,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
         filled: true,
         fillColor: Colors.grey[50],
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
       style: GoogleFonts.lato(
         color: Colors.black87,

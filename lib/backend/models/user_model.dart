@@ -50,7 +50,7 @@ class UserModel {
       'dislikedFoods': dislikedFoods,
       'bmi': bmi,
       'isProfileSetup': profileCompleted,
-      'calorieTargetPerDay': 0,
+      'calorieTargetPerDay': calorieTargetPerDay,
     };
   }
 

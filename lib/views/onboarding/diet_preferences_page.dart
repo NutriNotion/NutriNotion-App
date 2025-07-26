@@ -590,12 +590,12 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
   }
 
   double activityFactor(String activity) {
-    switch(activity.toLowerCase()) {
-      case 'sedentary':
+    switch(activity) {
+      case 'Sedentary':
         return 1.2;
-      case 'moderate':
+      case 'Moderate':
         return 1.55;
-      case 'active':
+      case 'Active':
         return 1.725;
       default:
         return 1.2; // Default to sedentary if unknown

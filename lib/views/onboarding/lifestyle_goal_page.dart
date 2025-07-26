@@ -20,19 +20,19 @@ class _LifestyleGoalPageState extends State<LifestyleGoalPage> {
       'title': 'Sedentary',
       'subtitle': 'Mostly sitting, minimal exercise',
       'icon': Icons.chair,
-      'value': 'sedentary',
+      'value': 'Sedentary',
     },
     {
       'title': 'Moderate',
       'subtitle': 'Some walking and light exercise',
       'icon': Icons.directions_walk,
-      'value': 'moderate',
+      'value': 'Moderate',
     },
     {
       'title': 'Active',
       'subtitle': 'Regular workouts and activities',
       'icon': Icons.fitness_center,
-      'value': 'active',
+      'value': 'Active',
     },
   ];
 

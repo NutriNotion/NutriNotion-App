@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:nutrinotion_app/backend/providers/nutrition_provider.dart';
 import 'package:provider/provider.dart';
 import '../../backend/providers/user_provider.dart';
 import '../../const/custom_colors.dart';
@@ -17,39 +18,57 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController _heightController;
   late TextEditingController _weightController;
   late TextEditingController _ageController;
+  late TextEditingController _allergyController;
   String _selectedGender = '';
   String _selectedActivityLevel = '';
   String _selectedDietaryPreference = '';
+  String _selectedGoal = '';
+  List<String> _selectedAllergies = [];
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    
+
     // Initialize controllers with existing user data
     _nameController = TextEditingController(text: userProvider.user.name ?? '');
-    _heightController = TextEditingController(text: userProvider.user.height?.toString() ?? '');
-    _weightController = TextEditingController(text: userProvider.user.weight?.toString() ?? '');
-    _ageController = TextEditingController(text: userProvider.user.age?.toString() ?? '');
-    
+    _heightController =
+        TextEditingController(text: userProvider.user.height?.toString() ?? '');
+    _weightController =
+        TextEditingController(text: userProvider.user.weight?.toString() ?? '');
+    _ageController =
+        TextEditingController(text: userProvider.user.age?.toString() ?? '');
+    _allergyController = TextEditingController();
+
     // Initialize dropdown values with default selections if empty
     _selectedGender = (userProvider.user.gender?.isNotEmpty == true &&
             ['Male', 'Female', 'Other'].contains(userProvider.user.gender))
         ? userProvider.user.gender!
         : 'Male';
-    
-    _selectedActivityLevel = (userProvider.user.activityLevel?.isNotEmpty == true &&
-            ['Sedentary', 'Moderate', 'Active']
-                .contains(userProvider.user.activityLevel))
-        ? userProvider.user.activityLevel!
-        : 'Moderate';
-    
-    _selectedDietaryPreference = (userProvider.user.dietType?.isNotEmpty == true &&
-            ['Vegetarian', 'Non-Vegetarian', 'Vegan', 'No Preference']
-                .contains(userProvider.user.dietType))
-        ? userProvider.user.dietType!
-        : 'No Preference';
+
+    _selectedActivityLevel =
+        (userProvider.user.activityLevel?.isNotEmpty == true &&
+                ['Sedentary', 'Moderate', 'Active']
+                    .contains(userProvider.user.activityLevel))
+            ? userProvider.user.activityLevel!
+            : 'Moderate';
+
+    _selectedDietaryPreference =
+        (userProvider.user.dietType?.isNotEmpty == true &&
+                ['Vegetarian', 'Non-Vegetarian', 'Vegan', 'No Preference']
+                    .contains(userProvider.user.dietType))
+            ? userProvider.user.dietType!
+            : 'No Preference';
+
+    _selectedGoal = (userProvider.user.fitnessGoal?.isNotEmpty == true &&
+            ['Gain Weight', 'Lose Weight', 'Maintain Fitness']
+                .contains(userProvider.user.fitnessGoal))
+        ? userProvider.user.fitnessGoal!
+        : 'Maintain Fitness';
+
+    // Initialize allergies list
+    _selectedAllergies = List<String>.from(userProvider.user.allergies ?? []);
   }
 
   @override
@@ -58,6 +77,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _heightController.dispose();
     _weightController.dispose();
     _ageController.dispose();
+    _allergyController.dispose();
     super.dispose();
   }
 
@@ -68,6 +88,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final nutritionProvider =
+          Provider.of<NutritionProvider>(context, listen: false);
 
       userProvider.updateBasicInfo(
         name: _nameController.text,
@@ -76,13 +98,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
       );
 
       userProvider.updateDietInfo(
-        dietType: _selectedDietaryPreference
+        dietType: _selectedDietaryPreference,
+        allergies: _selectedAllergies,
       );
 
       userProvider.updateLifestyleInfo(
         activityLevel: _selectedActivityLevel,
+        fitnessGoal: _selectedGoal,
       );
 
+// Recalculate and save nutrition/calorie data
+      await nutritionProvider
+          .recalculateAndSaveUserNutrition(userProvider.user);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -195,9 +222,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Form Section
             Container(
               decoration: BoxDecoration(
@@ -298,11 +325,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       _buildDropdown(
                         value: _selectedActivityLevel,
                         label: 'Activity Level',
-                        items: const [
-                          'Sedentary',
-                          'Moderate',
-                          'Active'
-                        ],
+                        items: const ['Sedentary', 'Moderate', 'Active'],
                         onChanged: (value) {
                           if (value != null) {
                             setState(() => _selectedActivityLevel = value);
@@ -325,6 +348,25 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           }
                         },
                       ),
+                      const SizedBox(height: 16),
+                      _buildDropdown(
+                        value: _selectedGoal,
+                        label: 'Fitness Goal',
+                        items: const [
+                          'Gain Weight',
+                          'Lose Weight',
+                          'Maintain Fitness'
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _selectedGoal = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      _buildSectionTitle('Allergies'),
+                      const SizedBox(height: 16),
+                      _buildAllergiesSection(),
                       const SizedBox(height: 32),
                       // Save Button
                       Container(
@@ -434,7 +476,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
         filled: true,
         fillColor: Colors.grey[50],
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     );
   }
@@ -449,7 +492,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final uniqueItems = items.toSet().toList();
     // Ensure we always have a valid value
     final effectiveValue = value.isNotEmpty ? value : uniqueItems.first;
-    
+
     return DropdownButtonFormField<String>(
       value: effectiveValue,
       isExpanded: true,
@@ -522,5 +565,145 @@ class _EditProfilePageState extends State<EditProfilePage> {
       },
       menuMaxHeight: 200,
     );
+  }
+
+  Widget _buildAllergiesSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Add Allergy',
+            style: GoogleFonts.lato(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _allergyController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter an allergy...',
+                    hintStyle: GoogleFonts.lato(
+                      color: Colors.grey[500],
+                      fontSize: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: primaryColor, width: 2),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
+                  style: GoogleFonts.lato(fontSize: 14),
+                  onSubmitted: _addAllergy,
+                ),
+              ),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: () => _addAllergy(_allergyController.text),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.add,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_selectedAllergies.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Current Allergies:',
+              style: GoogleFonts.lato(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _selectedAllergies.map((allergy) {
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.red[200]!),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        allergy,
+                        style: GoogleFonts.lato(
+                          fontSize: 13,
+                          color: Colors.red[700],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedAllergies.remove(allergy);
+                          });
+                        },
+                        child: Icon(
+                          Icons.close,
+                          size: 16,
+                          color: Colors.red[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _addAllergy(String allergy) {
+    if (allergy.trim().isNotEmpty &&
+        !_selectedAllergies.contains(allergy.trim())) {
+      setState(() {
+        _selectedAllergies.add(allergy.trim());
+        _allergyController.clear();
+      });
+    }
   }
 }

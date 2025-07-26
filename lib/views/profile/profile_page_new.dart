@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../const/custom_colors.dart';
 
 class ProfilePage extends StatefulWidget {
+  // ignore: use_super_parameters
   const ProfilePage({Key? key}) : super(key: key);
 
   @override

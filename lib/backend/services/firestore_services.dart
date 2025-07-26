@@ -29,6 +29,21 @@ class FirestoreServices {
     }
   }
 
+  // Update User Nutrition Goals
+  Future<void> updateUserNutritionGoals(String userId, Map<String, dynamic> nutritionGoals) async {
+    try {
+      if (userId.isEmpty) {
+        throw Exception('User ID is required');
+      }
+      await _firestore.collection('users').doc(userId).update({
+        'nutritionGoals': nutritionGoals,
+        'lastNutritionUpdate': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      throw Exception('Failed to update nutrition goals: $e');
+    }
+  }
+
   // Save or Update User Details (handles both new and existing users)
   Future<void> saveUserDetails(UserModel user) async {
     try {

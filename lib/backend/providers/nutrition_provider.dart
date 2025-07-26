@@ -106,7 +106,7 @@ class NutritionProvider with ChangeNotifier {
     return bmr;
   }
 
-  // Calculate daily calorie needs based on activity level
+  // Calculate daily calorie needs based on activity level and fitness goal
   int _calculateDailyCalories(UserModel user) {
     double bmr = _calculateBMR(user);
     if (bmr == 0) return 0;
@@ -126,18 +126,38 @@ class NutritionProvider with ChangeNotifier {
         activityMultiplier = 1.55;
     }
 
-    return (bmr * activityMultiplier).round();
+    // Calculate maintenance calories
+    double maintenanceCalories = bmr * activityMultiplier;
+
+    // Adjust calories based on fitness goal
+    int goalAdjustment = 0;
+    switch (user.fitnessGoal) {
+      case 'Gain Weight':
+        goalAdjustment = 250; // Add 250 calories for weight gain
+        break;
+      case 'Lose Weight':
+        goalAdjustment = -250; // Subtract 250 calories for weight loss
+        break;
+      case 'Maintain Fitness':
+        goalAdjustment = 100; // Add 100 calories for maintenance
+        break;
+      default:
+        goalAdjustment = 0; // No adjustment if goal is not specified
+    }
+
+    return (maintenanceCalories + goalAdjustment).round();
   }
 
   // Calculate nutrition goals based on calorie target
   Map<String, dynamic> _calculateNutritionGoals(int calorieTarget) {
     return {
       'calories': calorieTarget,
-      'protein': (calorieTarget * 0.25 / 4).round(), // 25% of calories from protein
-      'carbs': (calorieTarget * 0.45 / 4).round(),   // 45% of calories from carbs
-      'fat': (calorieTarget * 0.30 / 9).round(),     // 30% of calories from fat
+      'protein':
+          (calorieTarget * 0.25 / 4).round(), // 25% of calories from protein
+      'carbs': (calorieTarget * 0.45 / 4).round(), // 45% of calories from carbs
+      'fat': (calorieTarget * 0.30 / 9).round(), // 30% of calories from fat
       'fiber': 25, // Recommended daily fiber intake
-      'sugar': (calorieTarget * 0.10 / 4).round(),   // 10% of calories from sugar
+      'sugar': (calorieTarget * 0.10 / 4).round(), // 10% of calories from sugar
       'sodium': 2300, // Recommended daily sodium intake in mg
     };
   }
@@ -150,9 +170,10 @@ class NutritionProvider with ChangeNotifier {
 
       // Calculate new calorie target
       int newCalorieTarget = _calculateDailyCalories(user);
-      
+
       // Calculate new nutrition goals
-      Map<String, dynamic> newNutritionGoals = _calculateNutritionGoals(newCalorieTarget);
+      Map<String, dynamic> newNutritionGoals =
+          _calculateNutritionGoals(newCalorieTarget);
 
       // Update user's calorie target
       user.calorieTargetPerDay = newCalorieTarget;
@@ -164,7 +185,8 @@ class NutritionProvider with ChangeNotifier {
       await _firestoreServices.saveUserDetails(user);
 
       // Save nutrition goals to user document
-      await _firestoreServices.updateUserNutritionGoals(user.userId!, newNutritionGoals);
+      await _firestoreServices.updateUserNutritionGoals(
+          user.userId!, newNutritionGoals);
 
       notifyListeners();
     } catch (e) {
@@ -188,7 +210,8 @@ class NutritionProvider with ChangeNotifier {
     };
 
     for (var meal in _meals) {
-      totals['calories'] = (totals['calories'] ?? 0.0) + (meal['calories'] ?? 0.0);
+      totals['calories'] =
+          (totals['calories'] ?? 0.0) + (meal['calories'] ?? 0.0);
       totals['protein'] = (totals['protein'] ?? 0.0) + (meal['protein'] ?? 0.0);
       totals['carbs'] = (totals['carbs'] ?? 0.0) + (meal['carbs'] ?? 0.0);
       totals['fat'] = (totals['fat'] ?? 0.0) + (meal['fat'] ?? 0.0);
@@ -202,25 +225,27 @@ class NutritionProvider with ChangeNotifier {
 
   // Get progress percentage for a specific nutrient
   double getNutrientProgress(String nutrient) {
-    if (!_dailyNutrition.containsKey(nutrient) || !_nutritionGoals.containsKey(nutrient)) {
+    if (!_dailyNutrition.containsKey(nutrient) ||
+        !_nutritionGoals.containsKey(nutrient)) {
       return 0.0;
     }
-    
+
     double current = _dailyNutrition[nutrient]?.toDouble() ?? 0.0;
     double goal = _nutritionGoals[nutrient]?.toDouble() ?? 1.0;
-    
+
     return goal > 0 ? (current / goal) * 100 : 0.0;
   }
 
   // Get remaining amount for a specific nutrient
   double getRemainingNutrient(String nutrient) {
-    if (!_dailyNutrition.containsKey(nutrient) || !_nutritionGoals.containsKey(nutrient)) {
+    if (!_dailyNutrition.containsKey(nutrient) ||
+        !_nutritionGoals.containsKey(nutrient)) {
       return 0.0;
     }
-    
+
     double current = _dailyNutrition[nutrient]?.toDouble() ?? 0.0;
     double goal = _nutritionGoals[nutrient]?.toDouble() ?? 0.0;
-    
+
     return goal - current;
   }
 

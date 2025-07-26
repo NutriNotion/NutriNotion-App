@@ -109,20 +109,20 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
 
                     // Diet Type Options
                     ...(_dietTypes.map((diet) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildDietOptionCard(
-                        title: diet['title'],
-                        subtitle: diet['subtitle'],
-                        icon: diet['icon'],
-                        value: diet['value'],
-                        isSelected: _selectedDietType == diet['value'],
-                        onTap: () {
-                          setState(() {
-                            _selectedDietType = diet['value'];
-                          });
-                        },
-                      ),
-                    ))),
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _buildDietOptionCard(
+                            title: diet['title'],
+                            subtitle: diet['subtitle'],
+                            icon: diet['icon'],
+                            value: diet['value'],
+                            isSelected: _selectedDietType == diet['value'],
+                            onTap: () {
+                              setState(() {
+                                _selectedDietType = diet['value'];
+                              });
+                            },
+                          ),
+                        ))),
 
                     const SizedBox(height: 32),
 
@@ -139,7 +139,8 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(12),
@@ -175,7 +176,8 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(12),
@@ -205,8 +207,9 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
                           width: double.infinity,
                           height: 56,
                           child: ElevatedButton(
-                            onPressed: (_selectedDietType.isNotEmpty && !userProvider.isLoading) 
-                                ? _saveAndContinue 
+                            onPressed: (_selectedDietType.isNotEmpty &&
+                                    !userProvider.isLoading)
+                                ? _saveAndContinue
                                 : null,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: primaryColor,
@@ -223,7 +226,8 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
                                     width: 24,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white),
                                     ),
                                   )
                                 : Text(
@@ -283,8 +287,8 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isSelected 
-                    ? primaryColor.withOpacity(0.1) 
+                color: isSelected
+                    ? primaryColor.withOpacity(0.1)
                     : Colors.grey[100],
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -407,7 +411,8 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
               runSpacing: 8,
               children: _selectedAllergies.map((allergy) {
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: Colors.red[50],
                     borderRadius: BorderRadius.circular(16),
@@ -517,7 +522,8 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
               runSpacing: 8,
               children: _dislikedFoods.map((food) {
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: Colors.red[50],
                     borderRadius: BorderRadius.circular(16),
@@ -567,7 +573,8 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
   }
 
   void _addAllergy(String allergy) {
-    if (allergy.trim().isNotEmpty && !_selectedAllergies.contains(allergy.trim())) {
+    if (allergy.trim().isNotEmpty &&
+        !_selectedAllergies.contains(allergy.trim())) {
       setState(() {
         _selectedAllergies.add(allergy.trim());
         _allergyController.clear();
@@ -575,14 +582,33 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
     }
   }
 
-  double _calculateCalories(String gender, int weight, double height, int age, String activityLevel) {
+  double _calculateCalories(String gender, int weight, double height, int age,
+      String activityLevel, String fitnessGoal) {
     double bmr = bmrCalculate(gender, weight, height, age);
     double activity = activityFactor(activityLevel);
-    return bmr * activity;
+    double maintenanceCalories = bmr * activity;
+
+    // Adjust calories based on fitness goal
+    int goalAdjustment = 0;
+    switch (fitnessGoal) {
+      case 'Gain Weight':
+        goalAdjustment = 250; // Add 250 calories for weight gain
+        break;
+      case 'Lose Weight':
+        goalAdjustment = -250; // Subtract 250 calories for weight loss
+        break;
+      case 'Maintain Fitness':
+        goalAdjustment = 100; // Add 100 calories for maintenance
+        break;
+      default:
+        goalAdjustment = 0; // No adjustment if goal is not specified
+    }
+
+    return maintenanceCalories + goalAdjustment;
   }
 
   double bmrCalculate(String gender, int weight, double height, int age) {
-    if(gender.toLowerCase() == "male") {
+    if (gender.toLowerCase() == "male") {
       return (10 * weight) + (6.25 * height) - (5 * age) + 5;
     } else {
       return (10 * weight) + (6.25 * height) - (5 * age) - 161;
@@ -590,7 +616,7 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
   }
 
   double activityFactor(String activity) {
-    switch(activity) {
+    switch (activity) {
       case 'Sedentary':
         return 1.2;
       case 'Moderate':
@@ -604,7 +630,7 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
 
   void _saveAndContinue() async {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    
+
     // Save diet preferences to user provider
     userProvider.updateDietInfo(
       dietType: _selectedDietType,
@@ -620,6 +646,7 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
       user.height ?? 0,
       user.age ?? 0,
       user.activityLevel ?? '',
+      user.fitnessGoal ?? 'Maintain Fitness',
     );
 
     // Update user model with calorie target
@@ -628,7 +655,7 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
     try {
       // Save to Firestore and mark profile as complete
       final success = await userProvider.completeProfile();
-      
+
       if (success) {
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
@@ -640,7 +667,8 @@ class _DietPreferencesPageState extends State<DietPreferencesPage> {
         );
 
         // Navigate to home page
-        Navigator.pushReplacementNamed(context, '/generating-personalized-menu');
+        Navigator.pushReplacementNamed(
+            context, '/generating-personalized-menu');
       } else {
         // Show error message
         ScaffoldMessenger.of(context).showSnackBar(

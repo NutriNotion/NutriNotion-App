@@ -96,7 +96,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to update profile. Please try again.'),
-          backgroundColor: Colors.red,
+          backgroundColor: const Color.fromARGB(255, 245, 56, 42),
         ),
       );
     } finally {

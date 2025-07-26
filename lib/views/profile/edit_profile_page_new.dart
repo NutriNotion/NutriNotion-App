@@ -40,10 +40,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
         : 'Male';
     
     _selectedActivityLevel = (userProvider.user.activityLevel?.isNotEmpty == true &&
-            ['Sedentary', 'Moderately Active', 'Extra Active']
+            ['Sedentary', 'Moderate', 'Active']
                 .contains(userProvider.user.activityLevel))
         ? userProvider.user.activityLevel!
-        : 'Moderately Active';
+        : 'Moderate';
     
     _selectedDietaryPreference = (userProvider.user.dietType?.isNotEmpty == true &&
             ['Vegetarian', 'Non-Vegetarian', 'Vegan', 'No Preference']
@@ -300,10 +300,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         label: 'Activity Level',
                         items: const [
                           'Sedentary',
-                          'Lightly Active',
-                          'Moderately Active',
-                          'Very Active',
-                          'Extra Active'
+                          'Moderate',
+                          'Active'
                         ],
                         onChanged: (value) {
                           if (value != null) {
@@ -457,7 +455,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
       isExpanded: true,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: GoogleFonts.lato(color: Colors.grey[600]),
+        labelStyle: GoogleFonts.lato(
+          color: Colors.grey[600],
+          fontSize: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey[300]!),
@@ -468,25 +469,46 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: primaryColor),
+          borderSide: BorderSide(color: primaryColor, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red),
         ),
         filled: true,
-        fillColor: Colors.grey[50],
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+        suffixIcon: Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: primaryColor,
+            size: 24,
+          ),
+        ),
       ),
       style: GoogleFonts.lato(
         color: Colors.black87,
         fontSize: 16,
+        fontWeight: FontWeight.w600,
       ),
-      icon: Icon(Icons.arrow_drop_down, color: Colors.grey[600]),
+      icon: const SizedBox.shrink(), // Hide default icon
+      dropdownColor: Colors.white,
+      elevation: 8,
+      borderRadius: BorderRadius.circular(12),
+      isDense: false,
       items: uniqueItems.map((item) {
         return DropdownMenuItem(
           value: item,
-          child: Text(
-            item,
-            style: GoogleFonts.lato(
-              fontSize: 16,
-              color: Colors.black87,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              item,
+              style: GoogleFonts.lato(
+                fontSize: 16,
+                color: Colors.black87,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         );
@@ -498,6 +520,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         }
         return null;
       },
+      menuMaxHeight: 200,
     );
   }
 }

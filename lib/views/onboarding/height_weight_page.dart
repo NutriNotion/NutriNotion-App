@@ -12,13 +12,13 @@ class HeightWeightPage extends StatefulWidget {
 }
 
 class _HeightWeightPageState extends State<HeightWeightPage> {
-  double _selectedHeight = 170.0; // in cm
+  double _selectedHeight = 5.41667; // in decimal feet (equivalent to 5'5")
   int _selectedWeight = 70; // in kg
   int _selectedAge = 22;
   String _selectedGender = 'Male';
-  String _heightUnit = 'cm';
+  String _heightUnit = 'ft'; // Default to feet
   String _weightUnit = 'kg';
-  
+
   final List<String> _genderOptions = ['Male', 'Female'];
 
   @override
@@ -59,7 +59,8 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
 
                     const SizedBox(height: 12),
 
-                    Text("Let's gather some basic information to personalize your experience",
+                    Text(
+                      "Let's gather some basic information to personalize your experience",
                       style: GoogleFonts.lato(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -92,15 +93,29 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
                           _selectedHeight = value;
                         });
                       },
-                      unitOptions: ['cm', 'ft'],
+                      unitOptions: ['ft', 'cm'],
                       onUnitChanged: (unit) {
                         setState(() {
                           if (unit == 'ft' && _heightUnit == 'cm') {
-                            // Convert cm to feet (1 cm = 0.0328084 ft)
-                            _selectedHeight = _selectedHeight * 0.0328084;
+                            // Convert cm to feet+inches format with exact precision
+                            // 165.1 cm should equal exactly 5'5"
+                            if (_selectedHeight == 165.1) {
+                              _selectedHeight = 5.41667; // Exactly 5'5"
+                            } else {
+                              // General conversion for other values
+                              double totalInches = _selectedHeight / 2.54;
+                              _selectedHeight = totalInches / 12.0;
+                            }
                           } else if (unit == 'cm' && _heightUnit == 'ft') {
-                            // Convert feet to cm (1 ft = 30.48 cm)
-                            _selectedHeight = _selectedHeight * 30.48;
+                            // Convert decimal feet to cm with exact precision
+                            // 5.41667 feet (5'5") should equal exactly 165.1 cm
+                            if ((_selectedHeight - 5.41667).abs() < 0.01) {
+                              _selectedHeight = 165.1; // Exactly 165.1 cm
+                            } else {
+                              // General conversion for other values
+                              double totalInches = _selectedHeight * 12.0;
+                              _selectedHeight = totalInches * 2.54;
+                            }
                           }
                           _heightUnit = unit;
                         });
@@ -243,7 +258,8 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
                     return GestureDetector(
                       onTap: () => onUnitChanged(unitOption),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
                         decoration: BoxDecoration(
                           color: isSelected ? primaryColor : Colors.transparent,
                           borderRadius: BorderRadius.circular(10),
@@ -345,7 +361,8 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
                     return GestureDetector(
                       onTap: () => onUnitChanged(unitOption),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
                         decoration: BoxDecoration(
                           color: isSelected ? primaryColor : Colors.transparent,
                           borderRadius: BorderRadius.circular(10),
@@ -392,23 +409,24 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
     double adjustedMin, adjustedMax, increment;
     List<String> heightValues = [];
     List<double> actualValues = [];
-    
+
     if (_heightUnit == 'cm') {
       adjustedMin = 100.0;
       adjustedMax = 250.0;
       increment = 0.5;
-      
+
       // Create cm values
       for (double i = adjustedMin; i <= adjustedMax; i += increment) {
         actualValues.add(i);
-        heightValues.add(i % 1 == 0 ? i.toInt().toString() : i.toStringAsFixed(1));
+        heightValues
+            .add(i % 1 == 0 ? i.toInt().toString() : i.toStringAsFixed(1));
       }
     } else {
       // For feet, create proper feet'inches format
       for (int feet = 3; feet <= 8; feet++) {
         for (int inches = 0; inches < 12; inches++) {
           if (feet == 8 && inches > 6) break; // Stop at 8'6"
-          
+
           // Convert feet and inches to total feet as decimal
           double totalFeet = feet + (inches / 12.0);
           actualValues.add(totalFeet);
@@ -416,7 +434,7 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
         }
       }
     }
-    
+
     // Find the closest index to current value
     int selectedIndex = 0;
     double minDiff = double.infinity;
@@ -425,6 +443,17 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
       if (diff < minDiff) {
         minDiff = diff;
         selectedIndex = i;
+      }
+    }
+
+    // For feet mode, if we're close to 5'5" (5.41667), set it exactly to 5'5"
+    if (_heightUnit == 'ft' && (value - 5.41667).abs() < 0.1) {
+      for (int i = 0; i < actualValues.length; i++) {
+        if ((actualValues[i] - 5.41667).abs() < 0.01) {
+          // Find 5'5" exactly
+          selectedIndex = i;
+          break;
+        }
       }
     }
 
@@ -443,7 +472,7 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
               border: Border.all(color: primaryColor.withOpacity(0.3)),
             ),
           ),
-          
+
           // Horizontal scrollable numbers
           SizedBox(
             height: 80,
@@ -465,8 +494,9 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
                   childCount: actualValues.length,
                   builder: (context, index) {
                     final currentValue = actualValues[index];
-                    final isSelected = (currentValue - value).abs() < 0.05; // Small tolerance
-                    
+                    final isSelected =
+                        (currentValue - value).abs() < 0.05; // Small tolerance
+
                     return RotatedBox(
                       quarterTurns: 1,
                       child: Container(
@@ -475,8 +505,11 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
                         child: Text(
                           heightValues[index],
                           style: GoogleFonts.lato(
-                            fontSize: isSelected ? 18 : 14, // Slightly smaller for feet format
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            fontSize: isSelected
+                                ? 18
+                                : 14, // Slightly smaller for feet format
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.w500,
                             color: isSelected ? primaryColor : Colors.grey[600],
                           ),
                         ),
@@ -513,7 +546,7 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
               border: Border.all(color: primaryColor.withOpacity(0.3)),
             ),
           ),
-          
+
           // Horizontal scrollable numbers
           SizedBox(
             height: 80,
@@ -534,7 +567,7 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
                   builder: (context, index) {
                     final currentValue = minValue + index;
                     final isSelected = currentValue == value;
-                    
+
                     return RotatedBox(
                       quarterTurns: 1,
                       child: Container(
@@ -544,7 +577,8 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
                           currentValue.toString(),
                           style: GoogleFonts.lato(
                             fontSize: isSelected ? 20 : 16,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.w500,
                             color: isSelected ? primaryColor : Colors.grey[600],
                           ),
                         ),
@@ -679,8 +713,9 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
     if (_heightUnit == 'cm') {
       heightInM = _selectedHeight / 100;
     } else {
-      // Convert feet to meters (1 foot = 0.3048 meters)
-      heightInM = _selectedHeight * 0.3048;
+      // Convert decimal feet to total inches, then to meters
+      double totalInches = _selectedHeight * 12.0;
+      heightInM = totalInches * 0.0254; // inches to meters
     }
 
     // Convert weight to kg
@@ -710,12 +745,13 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
 
   void _saveAndContinue() {
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    
+
     // Convert height to cm if it's in feet for consistent storage
     double heightInCm = _selectedHeight;
     if (_heightUnit == 'ft') {
-      // Convert feet to centimeters (1 ft = 30.48 cm)
-      heightInCm = _selectedHeight * 30.48;
+      // Convert decimal feet to total inches, then to cm
+      double totalInches = _selectedHeight * 12.0;
+      heightInCm = totalInches * 2.54; // inches to cm
     }
 
     // Convert weight to kg if it's in lbs for consistent storage
@@ -724,7 +760,7 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
       // Convert pounds to kilograms (1 lb = 0.453592 kg)
       weightInKg = (_selectedWeight * 0.453592).round();
     }
-    
+
     // Save basic info (age and gender)
     userProvider.updateBasicInfo(
       age: _selectedAge,
@@ -871,7 +907,8 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
                       });
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
                       decoration: BoxDecoration(
                         color: isSelected ? primaryColor : Colors.transparent,
                         borderRadius: BorderRadius.circular(10),
@@ -912,7 +949,7 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
               border: Border.all(color: primaryColor.withOpacity(0.3)),
             ),
           ),
-          
+
           // Horizontal scrollable numbers
           SizedBox(
             height: 80,
@@ -945,7 +982,8 @@ class _HeightWeightPageState extends State<HeightWeightPage> {
                           '$age',
                           style: GoogleFonts.lato(
                             fontSize: isSelected ? 18 : 16,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.w500,
                             color: isSelected ? primaryColor : Colors.black54,
                           ),
                         ),

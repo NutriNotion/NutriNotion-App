@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:nutrinotion_app/backend/models/user_model.dart';
+import 'package:nutrinotion_app/backend/services/firestore_services.dart';
 
 class NutritionProvider with ChangeNotifier {
   List<Map<String, dynamic>> _meals = [];
@@ -7,6 +9,7 @@ class NutritionProvider with ChangeNotifier {
   List<Map<String, dynamic>> _foodHistory = [];
   bool _isLoading = false;
   String? _errorMessage;
+  final FirestoreServices _firestoreServices = FirestoreServices();
 
   // Getters
   List<Map<String, dynamic>> get meals => _meals;
@@ -86,6 +89,90 @@ class NutritionProvider with ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  // Calculate BMR using Mifflin-St Jeor Equation
+  double _calculateBMR(UserModel user) {
+    if (user.weight == null || user.height == null || user.age == null) {
+      return 0.0;
+    }
+
+    double bmr;
+    if (user.gender == 'Male') {
+      bmr = (10 * user.weight!) + (6.25 * user.height!) - (5 * user.age!) + 5;
+    } else {
+      bmr = (10 * user.weight!) + (6.25 * user.height!) - (5 * user.age!) - 161;
+    }
+    return bmr;
+  }
+
+  // Calculate daily calorie needs based on activity level
+  int _calculateDailyCalories(UserModel user) {
+    double bmr = _calculateBMR(user);
+    if (bmr == 0) return 0;
+
+    double activityMultiplier;
+    switch (user.activityLevel) {
+      case 'Sedentary':
+        activityMultiplier = 1.2;
+        break;
+      case 'Moderate':
+        activityMultiplier = 1.55;
+        break;
+      case 'Active':
+        activityMultiplier = 1.725;
+        break;
+      default:
+        activityMultiplier = 1.55;
+    }
+
+    return (bmr * activityMultiplier).round();
+  }
+
+  // Calculate nutrition goals based on calorie target
+  Map<String, dynamic> _calculateNutritionGoals(int calorieTarget) {
+    return {
+      'calories': calorieTarget,
+      'protein': (calorieTarget * 0.25 / 4).round(), // 25% of calories from protein
+      'carbs': (calorieTarget * 0.45 / 4).round(),   // 45% of calories from carbs
+      'fat': (calorieTarget * 0.30 / 9).round(),     // 30% of calories from fat
+      'fiber': 25, // Recommended daily fiber intake
+      'sugar': (calorieTarget * 0.10 / 4).round(),   // 10% of calories from sugar
+      'sodium': 2300, // Recommended daily sodium intake in mg
+    };
+  }
+
+  // Recalculate and save user nutrition data after profile changes
+  Future<void> recalculateAndSaveUserNutrition(UserModel user) async {
+    try {
+      setLoading(true);
+      clearError();
+
+      // Calculate new calorie target
+      int newCalorieTarget = _calculateDailyCalories(user);
+      
+      // Calculate new nutrition goals
+      Map<String, dynamic> newNutritionGoals = _calculateNutritionGoals(newCalorieTarget);
+
+      // Update user's calorie target
+      user.calorieTargetPerDay = newCalorieTarget;
+
+      // Update nutrition goals
+      _nutritionGoals = newNutritionGoals;
+
+      // Save updated user data to Firestore
+      await _firestoreServices.saveUserDetails(user);
+
+      // Save nutrition goals to user document
+      await _firestoreServices.updateUserNutritionGoals(user.userId!, newNutritionGoals);
+
+      notifyListeners();
+    } catch (e) {
+      setError('Failed to recalculate nutrition: $e');
+      print('Error recalculating nutrition: $e');
+    } finally {
+      setLoading(false);
+    }
   }
 
   // Private method to update daily nutrition totals

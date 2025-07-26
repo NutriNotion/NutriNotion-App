@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../backend/providers/user_provider.dart';
 import '../../const/custom_colors.dart';
+import '../../backend/providers/nutrition_provider.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -68,11 +69,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final nutritionProvider = Provider.of<NutritionProvider>(context, listen: false);
 
       userProvider.updateBasicInfo(
         name: _nameController.text,
         age: int.parse(_ageController.text),
         gender: _selectedGender,
+      );
+
+      // Update height and weight
+      userProvider.updatePhysicalInfo(
+        height: double.parse(_heightController.text),
+        weight: int.parse(_weightController.text),
       );
 
       userProvider.updateDietInfo(
@@ -82,6 +90,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
       userProvider.updateLifestyleInfo(
         activityLevel: _selectedActivityLevel,
       );
+
+      // Recalculate and save nutrition/calorie data
+      await nutritionProvider.recalculateAndSaveUserNutrition(userProvider.user);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

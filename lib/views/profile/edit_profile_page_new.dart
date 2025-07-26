@@ -40,7 +40,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         : 'Male';
     
     _selectedActivityLevel = (userProvider.user.activityLevel?.isNotEmpty == true &&
-            ['Sedentary', 'Lightly Active', 'Moderately Active', 'Very Active', 'Extra Active']
+            ['Sedentary', 'Moderately Active', 'Extra Active']
                 .contains(userProvider.user.activityLevel))
         ? userProvider.user.activityLevel!
         : 'Moderately Active';

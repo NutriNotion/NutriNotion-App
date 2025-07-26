@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nutrinotion_app/backend/providers/auth_provider.dart';
 import 'package:nutrinotion_app/backend/providers/user_provider.dart';
-import '../profile/edit_profile_page_new.dart';
 import 'package:nutrinotion_app/backend/services/mess_service.dart';
 import 'package:nutrinotion_app/const/custom_colors.dart';
 import 'package:nutrinotion_app/const/page_transitions.dart';
@@ -618,7 +617,7 @@ class _HomePageState extends State<HomePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        item['item'],
+                        item['item'] ?? 'null',
                         style: GoogleFonts.lato(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,

@@ -36,7 +36,7 @@ class AIService {
   Future<Map<String, dynamic>> generateRecommendations(Map<String, dynamic> data) async {
     print("Generating recommendations with data");
     try {
-      final url = Uri.parse("http://192.168.44.73:5000/api/recommend_weekly_meal");
+      final url = Uri.parse("https://ai-model-b7t1.onrender.com/api/recommend_weekly_meal");
       final response = await http.post(
         url,
         headers: {

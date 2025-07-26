@@ -21,6 +21,7 @@ import 'backend/providers/firestore_provider.dart';
 import 'backend/providers/mess_provider.dart';
 import 'backend/providers/user_provider.dart';
 import 'views/onboarding/lifestyle_goal_page.dart';
+import 'views/profile/edit_profile_page_new.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,7 +60,7 @@ class MyApp extends StatelessWidget {
           fontFamily: 'Roboto',
           visualDensity: VisualDensity.adaptivePlatformDensity,
         ),
-        home: const GeneratingPersonalizedFood(),
+        home: const SplashScreen(),
         onGenerateRoute: (settings) {
           switch (settings.name) {
             case '/login':
@@ -74,8 +75,10 @@ class MyApp extends StatelessWidget {
               return FadePageRoute(child: const HeightWeightPage(), durationMs: 500);
             case '/lifestyle-goal':
               return FadePageRoute(child: const LifestyleGoalPage(), durationMs: 500);
-            case 'generating-personalized-menu' :
+            case '/generating-personalized-menu' :
               return FadePageRoute(child: const GeneratingPersonalizedFood(), durationMs: 500);
+            case '/edit-profile':
+              return FadePageRoute(child: const EditProfilePage(), durationMs: 500);
             default:
               return FadePageRoute(child: const LandingPage(), durationMs: 300);
           }
